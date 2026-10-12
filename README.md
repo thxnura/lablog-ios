@@ -8,34 +8,56 @@ and submit location-stamped lab records that sync to the backend when back onlin
 
 ```
 LabLog/
-  App/            app entry + DI
-  Features/       screens (LabList, ExperimentDetail, RecordCapture, SyncStatus)
+  App/            LabLogApp, AppModel (composition root), AppConfig, RootView (tabs)
+  DesignSystem/   Theme tokens (colour, spacing, radius, motion) + shared components
+  Features/       LabList (home), ExperimentList, ExperimentDetail, RecordCapture,
+                  Records, SyncStatus, Auth
   Components/
-    ExperimentChecklist/   ★ custom component (precedence-constrained checklist)
+    ExperimentChecklist/   ★ custom component (timeline, precedence-constrained)
+    SyncStateBadge         status / sync / connectivity chips
   Domain/
     Entities/     plain model structs
     Constraints/  StepConstraintEngine (pure, unit-tested) ★ constraint design
   Data/
-    Local/        LocalStore protocol (back with SwiftData)
-    Remote/       APIClient + wire DTOs
+    Local/        LocalStore protocol, SwiftDataStore (+ @Model types), CatalogSeed,
+                  EvidenceStore (photos on disk)
+    Remote/       APIClient (LabLogAPI), DTOs, AuthService (Supabase GoTrue), Keychain
     Sync/         SyncEngine (outbox) + Reachability (NWPathMonitor)
-  Hardware/       CameraService, LocationService
-LabLogTests/      StepConstraintEngineTests
+  Hardware/       CameraPicker, LocationService
+  Assets.xcassets AppIcon (original artwork), AccentColor
+Config/           LabLog.xcconfig, Secrets.example.xcconfig, Info.plist
+LabLogTests/      StepConstraintEngine, SwiftDataStore, SyncEngine tests (28)
+LabLogUITests/    end-to-end flow + screenshots (2)
 docs/             decision-records.md, failure-log.md, screenshots/
 ```
 
-## Getting it into Xcode
+## Building & running
 
-These are **source files**; the binary `.xcodeproj` is created in Xcode:
+Open `LabLog.xcodeproj` (scheme **LabLog**). The `LabLog/` and `LabLogTests/` folders are
+file-system-synchronized, so new `.swift` files are picked up automatically. Camera and
+location usage strings are set in the target's build settings (see ADR-007).
 
-1. Xcode → New Project → iOS App → name **LabLog**, interface **SwiftUI**, storage **SwiftData**.
-2. Delete the template `ContentView`/`App` file and **add the `LabLog/` folder** (Add Files → Create groups).
-3. Add a **unit test target** and include `LabLogTests/`.
-4. Info.plist keys:
-   - `NSCameraUsageDescription` — "Photograph your experiment setup and results."
-   - `NSLocationWhenInUseUsageDescription` — "Stamp your lab record with your location."
-5. Add a `Secrets.xcconfig` (git-ignored) with your Supabase URL + anon key for Auth.
-6. Implement `SwiftDataStore: LocalStore` (@Model classes mirroring `Domain/Entities`).
+```sh
+# unit tests (simulator)
+xcodebuild test -project LabLog.xcodeproj -scheme LabLog \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+
+# build + install on a connected iPhone
+xcodebuild build -project LabLog.xcodeproj -scheme LabLog \
+  -destination 'platform=iOS,id=<UDID>' -allowProvisioningUpdates
+xcrun devicectl device install app --device <UDID> \
+  <DerivedData>/Build/Products/Debug-iphoneos/LabLog.app
+```
+
+Signing uses a free Personal Team, so the profile expires after 7 days. Re-run from
+Xcode before a demo.
+
+Without `Config/Secrets.xcconfig` the app runs in on-device mode with the bundled
+catalog. To sync, copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig`
+and set the backend URL (your Mac's LAN IP + `/api`), the Supabase URL and the anon key.
+
+UI-test screenshots: run the `LabLogUITests` with `-resultBundlePath`, then
+`xcrun xcresulttool export attachments --path <bundle> --output-path <dir>`.
 
 ## Key pieces to defend in the viva
 

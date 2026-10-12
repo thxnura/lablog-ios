@@ -1,0 +1,26 @@
+# Crash: LabLog test host (iPhone 17 Pro simulator), 2026-10-12 22:09
+# Source: LabLog-2026-10-12-220918.ips from ~/Library/Logs/DiagnosticReports
+
+Exception Type:  EXC_BREAKPOINT (SIGTRAP)
+Termination:     Trace/BPT trap: 5
+
+Triggered thread backtrace:
+ 0  SwiftData              ???
+ 1  SwiftData              ???
+ 2  SwiftData              ???
+ 3  LabLog.debug.dylib     SwiftDataStore.hasCatalog()  (SwiftDataStore.swift:32)
+ 4  LabLog.debug.dylib     protocol witness for LocalStore.hasCatalog() in conformance SwiftDataStore
+ 5  LabLog.debug.dylib     static CatalogSeed.installIfNeeded(into:)  (CatalogSeed.swift:101)
+ 6  LabLogTests            SwiftDataStoreTests.setUp()  (SwiftDataStoreTests.swift:12)
+ 7  LabLogTests            @objc closure #1 in SwiftDataStoreTests.setUp()
+ 8  LabLogTests            partial apply for @objc closure #1 in SwiftDataStoreTests.setUp()
+
+# xcodebuild test output
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.007 (0.039) seconds
+Test Suite 'SwiftDataStoreTests' started at 2026-10-12 10:08:51.809 PM.
+Test Case '-[LabLogTests.SwiftDataStoreTests testDTOOnlyIncludesUploadedPhotos]' started.
+
+Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+Test Suite 'Selected tests' started at 2026-10-12 10:09:17.592 PM.
+# test-host restarts in this run: 16

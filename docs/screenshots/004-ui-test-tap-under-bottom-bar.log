@@ -1,0 +1,29 @@
+# xcodebuild test — LabLogUITests (after the visual redesign), 2026-10-12 22:27
+
+    t =    13.97s     Find the "step-4" Any
+    t =    14.02s     Check for interrupting elements affecting "step-4" Button
+    t =    14.06s     Synthesize event
+    t =    14.35s     Wait for com.thxnura.LabLog to idle
+    t =    14.35s Waiting 3.0s for "toast" Any to exist
+    t =    15.38s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" Any`
+    t =    15.38s         Checking existence of `"toast" Any`
+    t =    15.51s         Capturing element debug description
+    t =    16.44s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" Any`
+    t =    16.44s         Checking existence of `"toast" Any`
+    t =    16.57s         Capturing element debug description
+    t =    17.36s     Checking `Expect predicate `existsNoRetry == 1` for object "toast" Any`
+    t =    17.36s         Checking existence of `"toast" Any`
+    t =    17.49s         Capturing element debug description
+    t =    17.49s     Checking existence of `"toast" Any`
+    t =    17.59s Collecting debug information to assist test failure triage
+    t =    17.59s     Requesting snapshot of accessibility hierarchy for app with pid 12797
+LabLogUITests/LabLogFlowUITests.swift:56: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    t =    17.73s Tear Down
+Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' failed (18.094 seconds).
+Test Suite 'LabLogFlowUITests' failed at 2026-10-12 10:27:07.791 PM.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 37.181 (37.183) seconds
+Test Suite 'LabLogUITests.xctest' failed at 2026-10-12 10:27:07.793 PM.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 37.181 (37.185) seconds
+Test Suite 'All tests' failed at 2026-10-12 10:27:07.793 PM.
+
+# then: xcodebuild stayed alive >10 min after 'All tests failed' and had to be killed (pid 12485)

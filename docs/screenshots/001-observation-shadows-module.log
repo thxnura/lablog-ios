@@ -1,0 +1,94 @@
+# xcodebuild test — iPhone 17 Pro simulator — 2026-10-12 (attempt 1, before fix)
+# Xcode 27.0 (27A266a), Swift 6.4
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ LabLog (in target 'LabLog' from project 'LabLog')
+macro expansion @Observable:1:49: error: 'Observable' is not a member type of struct 'LabLog.Observation'
+`- /Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLog/Data/Sync/Reachability.swift:28:2: note: expanded code originates here
+ 4 | /// Observes connectivity and publishes online/offline transitions. The
+ 5 | /// SyncEngine subscribes to `onBecameOnline` to flush the outbox.
+ 6 | @Observable
+   | `- note: in expansion of macro 'Observable' on class 'Reachability' here
+ 7 | final class Reachability {
+ 8 |     private(set) var isOnline = true
+   :
+26 | 
+27 |     func stop() { monitor.cancel() }
+28 | }
+   +--- macro expansion @Observable ------------------------------------
+   |1 | extension Reachability: nonisolated Observation.Observable {
+   |  |                                                 `- error: 'Observable' is not a member type of struct 'LabLog.Observation'
+   |2 | }
+   +--------------------------------------------------------------------
+29 | 
+
+/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLog/Domain/Entities/Entities.swift:63:8: note: 'Observation' declared here
+61 | }
+62 | 
+63 | struct Observation: Identifiable, Codable, Hashable {
+   |        `- note: 'Observation' declared here
+64 |     let id: UUID
+65 |     let recordId: UUID
+
+macro expansion @Observable:1:70: error: type 'Observation' has no member 'ObservationRegistrar'
+`- /Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLog/Data/Sync/Reachability.swift:28:1: note: expanded code originates here
+ 4 | /// Observes connectivity and publishes online/offline transitions. The
+ 5 | /// SyncEngine subscribes to `onBecameOnline` to flush the outbox.
+ 6 | @Observable
+   | `- note: in expansion of macro 'Observable' on class 'Reachability' here
+ 7 | final class Reachability {
+ 8 |     private(set) var isOnline = true
+   :
+26 | 
+27 |     func stop() { monitor.cancel() }
+28 | }
+   +--- macro expansion @Observable ------------------------------------
+   | 1 | @ObservationIgnored private let _$observationRegistrar = Observation.ObservationRegistrar()
+   |   |                                                                      `- error: type 'Observation' has no member 'ObservationRegistrar'
+   | 2 | 
+   | 3 | internal nonisolated func access<$s6LabLog12Reachability10ObservablefMm_6MemberfMu_>(
+   +--------------------------------------------------------------------
+29 | 
+
+macro expansion @Observable:1:47: error: 'Observable' is not a member type of struct 'LabLog.Observation'
+`- /Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLog/Data/Sync/SyncEngine.swift:68:2: note: expanded code originates here
+ 6 | /// Flow: upload pending photos (signed URL) → POST /sync → mark each record
+ 7 | /// synced/failed from the response. Client UUIDs make retries idempotent.
+ 8 | @Observable
+   | `- note: in expansion of macro 'Observable' on class 'SyncEngine' here
+ 9 | final class SyncEngine {
+10 |     enum Status: Equatable { case idle, syncing, failed(String) }
+   :
+66 |         _ = try await URLSession.shared.data(for: req)
+67 |     }
+68 | }
+   +--- macro expansion @Observable ------------------------------------
+   |1 | extension SyncEngine: nonisolated Observation.Observable {
+   |  |                                               `- error: 'Observable' is not a member type of struct 'LabLog.Observation'
+   |2 | }
+   +--------------------------------------------------------------------
+69 | 
+
+/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLog/Domain/Entities/Entities.swift:63:8: note: 'Observation' declared here
+61 | }
+62 | 
+63 | struct Observation: Identifiable, Codable, Hashable {
+   |        `- note: 'Observation' declared here
+64 |     let id: UUID
+65 |     let recordId: UUID
+
+
+Testing failed:
+	'Observable' is not a member type of struct 'LabLog.Observation'
+	Type 'Observation' has no member 'ObservationRegistrar'
+	'Observable' is not a member type of struct 'LabLog.Observation'
+	Type 'Observation' has no member 'ObservationRegistrar'
+	Testing cancelled because the build failed.
+
+** TEST FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 (in target 'LabLog' from project 'LabLog')
+	SwiftEmitModule normal arm64 Emitting\ module\ for\ LabLog (in target 'LabLog' from project 'LabLog')
+	Testing project LabLog with scheme LabLog
+(3 failures)
