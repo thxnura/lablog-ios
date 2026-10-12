@@ -1,0 +1,10 @@
+// Build settings for the LabLog app target.
+//
+// Backend values are empty by default, so the app runs in offline-only mode
+// with the bundled catalog. To sync, copy Secrets.example.xcconfig to
+// Secrets.xcconfig (git-ignored) and fill it in.
+LABLOG_API_BASE_URL =
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
+#include? "Secrets.xcconfig"

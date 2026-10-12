@@ -1,92 +1,264 @@
 import SwiftUI
 
-/// A single row in the ExperimentChecklist. Renders one of five visual states.
+/// A single step in the ExperimentChecklist timeline: a status node on the
+/// left rail, a connector down to the next step, and the step card.
 struct ChecklistRow: View {
     enum RowState: Equatable {
         case locked(reason: String)
         case available
         case completed(at: Date)
         case needsPhoto
-        case timerPending(text: String)
+        /// `progress` runs 0 → 1 as the wait elapses.
+        case timerPending(text: String, progress: Double)
     }
 
     let step: Step
     let state: RowState
     let style: ChecklistStyle
+    var isLast = false
+    /// Connector below this node is "filled" once this step is done.
+    var connectorFilled = false
+    var thumbnail: UIImage?
     let onTap: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                icon
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Step \(step.order): \(step.title)")
-                        .font(.headline)
-                    if let instruction = step.instruction {
-                        Text(instruction)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(subtitleTint)
-                    }
-                }
-                Spacer()
+            HStack(alignment: .top, spacing: Theme.Space.m) {
+                node
+                card
             }
-            .padding()
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: style.cornerRadius))
-            .opacity(isLocked ? style.lockedOpacity : 1)
         }
-        .buttonStyle(.plain)
-        .disabled(false) // locked rows still tappable so we can show the reason
+        .buttonStyle(.pressableCard)
+        .background(alignment: .topLeading) { connector }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Step \(step.order), \(step.title)")
+        .accessibilityValue(accessibilityState)
+        .accessibilityHint(accessibilityHint)
     }
+
+    // MARK: Rail
+
+    private var connector: some View {
+        Rectangle()
+            .fill(connectorFilled ? style.completedTint : Color.secondary.opacity(0.22))
+            .frame(width: 2)
+            .padding(.top, style.nodeSize + 4)
+            .padding(.leading, style.nodeSize / 2 - 1)
+            .padding(.bottom, -style.rowSpacing + 2)
+            .opacity(isLast ? 0 : 1)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var node: some View {
+        let size = style.nodeSize
+        ZStack {
+            switch state {
+            case .completed:
+                Circle().fill(style.completedTint)
+                Image(systemName: "checkmark")
+                    .font(.system(size: size * 0.42, weight: .bold))
+                    .foregroundStyle(.white)
+                    .transition(.scale.combined(with: .opacity))
+            case .available:
+                Circle().strokeBorder(style.availableTint, lineWidth: 2.5)
+                Circle().fill(style.availableTint).padding(size * 0.3)
+            case .needsPhoto:
+                Circle().fill(style.guardTint.opacity(0.16))
+                Image(systemName: "camera.fill")
+                    .font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundStyle(style.guardTint)
+            case .timerPending(_, let progress):
+                Circle().stroke(style.guardTint.opacity(0.18), lineWidth: 3)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(style.guardTint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: "hourglass")
+                    .font(.system(size: size * 0.38, weight: .semibold))
+                    .foregroundStyle(style.guardTint)
+            case .locked:
+                Circle().fill(Color.secondary.opacity(0.14))
+                Image(systemName: "lock.fill")
+                    .font(.system(size: size * 0.36, weight: .semibold))
+                    .foregroundStyle(style.lockedTint)
+            }
+        }
+        .frame(width: size, height: size)
+        .padding(.top, 14)
+        .animation(reduceMotion ? nil : .bouncy(duration: 0.4), value: isCompleted)
+    }
+
+    // MARK: Card
+
+    private var card: some View {
+        HStack(alignment: .top, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Step \(step.order)")
+                    .eyebrow()
+                    .foregroundStyle(eyebrowTint)
+                Text(step.title)
+                    .font(.headline)
+                    .foregroundStyle(isLocked ? .secondary : .primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let instruction = step.instruction, !(isCompleted && style.collapsesCompletedSteps) {
+                    Text(instruction)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                statusLine
+                    .padding(.top, 2)
+            }
+            Spacer(minLength: 0)
+            if let thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+        }
+        .padding(Theme.Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill, in: RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous)
+                .strokeBorder(borderTint, lineWidth: borderWidth)
+        }
+        .shadow(color: shadowTint, radius: 12, y: 5)
+        .opacity(isLocked ? style.lockedOpacity + 0.25 : 1)
+        .contentShape(RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        switch state {
+        case .timerPending(let text, _):
+            HStack(spacing: 6) {
+                Image(systemName: "timer")
+                Text(text)
+                    .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: true))
+            }
+            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+            .foregroundStyle(style.guardTint)
+        default:
+            HStack(spacing: 5) {
+                Image(systemName: statusIcon)
+                Text(statusText)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(statusTint)
+        }
+    }
+
+    // MARK: State → appearance
 
     private var isLocked: Bool {
-        if case .available = state { return false }
-        if case .completed = state { return false }
-        return true
+        if case .locked = state { return true }
+        return false
     }
 
-    private var icon: some View {
-        Image(systemName: iconName)
-            .font(.title2)
-            .foregroundStyle(iconTint)
+    private var isCompleted: Bool {
+        if case .completed = state { return true }
+        return false
     }
 
-    private var iconName: String {
+    private var isActionable: Bool {
         switch state {
-        case .completed: return "checkmark.circle.fill"
-        case .available: return "circle"
-        case .needsPhoto: return "camera.circle"
-        case .timerPending: return "clock"
-        case .locked: return "lock.fill"
+        case .available, .needsPhoto: true
+        default: false
         }
     }
 
-    private var iconTint: Color {
+    private var cardFill: AnyShapeStyle {
+        isCompleted ? AnyShapeStyle(style.completedTint.opacity(0.09)) : AnyShapeStyle(Theme.surface)
+    }
+
+    private var borderTint: Color {
         switch state {
-        case .completed: return style.completedTint
-        case .available: return style.availableTint
-        default: return style.lockedTint
+        case .available: style.availableTint
+        case .needsPhoto, .timerPending: style.guardTint.opacity(0.7)
+        default: .clear
         }
     }
 
-    private var subtitle: String? {
+    private var borderWidth: CGFloat {
         switch state {
-        case .locked(let reason): return reason
-        case .needsPhoto: return "Attach a photo to complete this step"
-        case .timerPending(let text): return text
-        case .completed(let at): return "Done · \(at.formatted(date: .omitted, time: .shortened))"
-        case .available: return step.requiresPhoto ? "Photo required" : nil
+        case .available, .needsPhoto, .timerPending: 1.5
+        default: 0
         }
     }
 
-    private var subtitleTint: Color {
+    /// Only the steps that want attention are lifted off the page.
+    private var shadowTint: Color {
         switch state {
-        case .completed: return style.completedTint
-        default: return style.lockedTint
+        case .available: style.availableTint.opacity(0.18)
+        case .needsPhoto, .timerPending: style.guardTint.opacity(0.16)
+        default: .clear
+        }
+    }
+
+    private var eyebrowTint: Color {
+        switch state {
+        case .completed: style.completedTint
+        case .available: style.availableTint
+        case .needsPhoto, .timerPending: style.guardTint
+        case .locked: .secondary
+        }
+    }
+
+    private var statusText: String {
+        switch state {
+        case .locked(let reason): reason
+        case .needsPhoto: "Tap to take the evidence photo"
+        case .timerPending(let text, _): text
+        case .completed(let at): "Done at \(at.formatted(date: .omitted, time: .shortened))"
+        case .available: step.requiresPhoto ? "Photo attached · tap to finish" : "Tap to mark done"
+        }
+    }
+
+    private var statusIcon: String {
+        switch state {
+        case .locked: "lock"
+        case .needsPhoto: "camera"
+        case .timerPending: "timer"
+        case .completed: "checkmark.circle.fill"
+        case .available: "hand.tap.fill"
+        }
+    }
+
+    private var statusTint: Color {
+        switch state {
+        case .completed: style.completedTint
+        case .needsPhoto, .timerPending: style.guardTint
+        case .available: style.availableTint
+        case .locked: style.lockedTint
+        }
+    }
+
+    private var accessibilityState: String {
+        switch state {
+        case .locked(let reason): "Locked. \(reason)"
+        case .available: "Available"
+        case .completed(let at): "Completed at \(at.formatted(date: .omitted, time: .shortened))"
+        case .needsPhoto: "Needs a photo"
+        case .timerPending(let text, _): text
+        }
+    }
+
+    private var accessibilityHint: String {
+        switch state {
+        case .available: "Double-tap to mark done"
+        case .needsPhoto: "Double-tap to open the camera"
+        case .locked: "Double-tap to hear why it's locked"
+        default: ""
         }
     }
 }

@@ -50,6 +50,11 @@ struct LabRecord: Identifiable, Codable, Hashable {
     var longitude: Double?
     let createdAt: Date
     var submittedAt: Date?
+    /// Local edit counter. A sync result only marks the record `synced` if no
+    /// edit happened while the request was in flight (same revision).
+    var revision: Int = 1
+    /// Last error reported for this record by a failed sync, if any.
+    var lastSyncError: String?
 }
 
 struct StepCompletion: Identifiable, Codable, Hashable {
@@ -60,7 +65,7 @@ struct StepCompletion: Identifiable, Codable, Hashable {
     var note: String?
 }
 
-struct Observation: Identifiable, Codable, Hashable {
+struct LabObservation: Identifiable, Codable, Hashable {
     let id: UUID
     let recordId: UUID
     var text: String
@@ -70,8 +75,10 @@ struct Attachment: Identifiable, Codable, Hashable {
     let id: UUID
     let recordId: UUID
     let stepId: UUID?
-    /// Local file URL before upload; set to the Storage path after sync.
+    /// File name inside the app's Evidence directory (relative, because the
+    /// app container path changes between installs).
     var localPath: String?
+    /// Path inside the Supabase Storage bucket, set once uploaded.
     var storagePath: String?
     var syncState: SyncState
 }

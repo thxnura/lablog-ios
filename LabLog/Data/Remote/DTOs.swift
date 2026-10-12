@@ -2,25 +2,25 @@ import Foundation
 
 /// Wire DTOs matching the Express backend's zod contracts (camelCase JSON).
 
-struct SyncStepCompletionDTO: Codable {
+struct SyncStepCompletionDTO: Codable, Equatable {
     let id: UUID
     let stepId: UUID
     let completedAt: Date
     let note: String?
 }
 
-struct SyncObservationDTO: Codable {
+struct SyncObservationDTO: Codable, Equatable {
     let id: UUID
     let text: String
 }
 
-struct SyncAttachmentDTO: Codable {
+struct SyncAttachmentDTO: Codable, Equatable {
     let id: UUID
     let stepId: UUID?
     let storagePath: String
 }
 
-struct SyncRecordDTO: Codable {
+struct SyncRecordDTO: Codable, Equatable {
     let id: UUID
     let experimentId: UUID
     let status: String
@@ -49,3 +49,19 @@ struct SignUploadDTO: Codable {
     let path: String
     let storagePath: String
 }
+
+/// `GET /api/experiments/:id` — an experiment with its ordered steps.
+struct ExperimentDetailDTO: Codable {
+    let id: UUID
+    let labId: UUID
+    let title: String
+    let description: String?
+    let steps: [Step]
+
+    var experiment: Experiment {
+        Experiment(id: id, labId: labId, title: title, description: description)
+    }
+}
+
+/// Error body produced by the backend's errorHandler: `{ "error": "…" }`.
+struct APIErrorBody: Decodable { let error: String }

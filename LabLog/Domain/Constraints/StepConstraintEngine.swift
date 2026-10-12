@@ -8,6 +8,8 @@ import Foundation
 ///     (the steps form a dependency DAG).
 ///  2. Guard conditions — `requiresPhoto` and `minDurationSeconds` preconditions.
 ///  3. Invariant centralisation — one source of truth, reused by every screen.
+///  4. Structural validation — a step graph with a cycle or a dangling edge can
+///     never be finished, so it is rejected before it reaches a student.
 struct StepConstraintEngine {
 
     /// Why a step is currently not actionable (nil == unlocked & completable).
@@ -58,6 +60,20 @@ struct StepConstraintEngine {
         lockReason(for: step, context: ctx) == nil
     }
 
+    /// Steps not yet completed whose prerequisites are all met — what the
+    /// student can work on next (guards may still apply).
+    func reachableSteps(_ steps: [Step], context ctx: Context) -> [Step] {
+        steps
+            .filter { !ctx.completedStepIds.contains($0.id) }
+            .filter { step in step.prerequisiteStepIds.allSatisfy(ctx.completedStepIds.contains) }
+            .sorted { $0.order < $1.order }
+    }
+
+    /// True when every step in the experiment has been completed.
+    func isComplete(_ steps: [Step], completedStepIds: Set<UUID>) -> Bool {
+        !steps.isEmpty && steps.allSatisfy { completedStepIds.contains($0.id) }
+    }
+
     /// Human-readable message for a locked step, shown inline in the checklist.
     func message(for reason: LockReason, steps: [Step]) -> String {
         switch reason {
@@ -74,5 +90,72 @@ struct StepConstraintEngine {
             let m = secs / 60, s = secs % 60
             return String(format: "Wait %d:%02d", m, s)
         }
+    }
+
+    // MARK: - Graph validation
+
+    /// Structural problems in an experiment's step graph.
+    enum GraphIssue: Equatable {
+        case selfDependency(step: UUID)
+        case unknownPrerequisite(step: UUID, missing: UUID)
+        /// Steps that can never become ready because they sit on (or behind) a cycle.
+        case cycle(steps: [UUID])
+    }
+
+    /// Kahn's algorithm: repeatedly take a step whose prerequisites are all
+    /// placed (lowest `order` first, so the result is deterministic). Returns a
+    /// valid completion order, or nil when a cycle leaves steps unplaced.
+    func topologicalOrder(_ steps: [Step]) -> [Step]? {
+        let (ordered, stuck) = kahn(steps)
+        return stuck.isEmpty ? ordered : nil
+    }
+
+    /// Every structural issue in the graph; empty means the experiment is completable.
+    func validate(_ steps: [Step]) -> [GraphIssue] {
+        let known = Set(steps.map(\.id))
+        var issues: [GraphIssue] = []
+        for step in steps.sorted(by: { $0.order < $1.order }) {
+            for prereq in step.prerequisiteStepIds {
+                if prereq == step.id {
+                    issues.append(.selfDependency(step: step.id))
+                } else if !known.contains(prereq) {
+                    issues.append(.unknownPrerequisite(step: step.id, missing: prereq))
+                }
+            }
+        }
+        let stuck = kahn(steps).stuck
+        if !stuck.isEmpty {
+            issues.append(.cycle(steps: stuck.map(\.id)))
+        }
+        return issues
+    }
+
+    private func kahn(_ steps: [Step]) -> (ordered: [Step], stuck: [Step]) {
+        let known = Set(steps.map(\.id))
+        // Unknown prerequisites are reported by `validate`; they don't block ordering.
+        var unmet: [UUID: Set<UUID>] = [:]
+        for step in steps {
+            unmet[step.id] = Set(step.prerequisiteStepIds).intersection(known)
+        }
+
+        var ready = steps.filter { unmet[$0.id]?.isEmpty == true }
+        var ordered: [Step] = []
+        var placed: Set<UUID> = []
+
+        while !ready.isEmpty {
+            ready.sort { $0.order < $1.order }
+            let next = ready.removeFirst()
+            guard placed.insert(next.id).inserted else { continue }
+            ordered.append(next)
+            for step in steps where unmet[step.id]?.contains(next.id) == true {
+                unmet[step.id]?.remove(next.id)
+                if unmet[step.id]?.isEmpty == true { ready.append(step) }
+            }
+        }
+
+        let stuck = steps
+            .filter { !placed.contains($0.id) }
+            .sorted { $0.order < $1.order }
+        return (ordered, stuck)
     }
 }

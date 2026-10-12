@@ -1,28 +1,41 @@
 import Foundation
 import Network
+import Observation
 
-/// Observes connectivity and publishes online/offline transitions. The
-/// SyncEngine subscribes to `onBecameOnline` to flush the outbox.
+/// Observes connectivity and publishes online/offline transitions. The app
+/// wires `onBecameOnline` to the SyncEngine so the outbox flushes on reconnect.
+@MainActor
 @Observable
 final class Reachability {
     private(set) var isOnline = true
-    var onBecameOnline: () -> Void = {}
 
-    private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "reachability")
+    @ObservationIgnored var onBecameOnline: () -> Void = {}
+    @ObservationIgnored private let monitor = NWPathMonitor()
+    @ObservationIgnored private let queue = DispatchQueue(label: "com.thxnura.LabLog.reachability")
+    @ObservationIgnored private var started = false
 
     func start() {
+        guard !started else { return }
+        started = true
+        // NWPathMonitor calls back on its own queue; hop to the main actor
+        // before touching observable state the UI reads.
         monitor.pathUpdateHandler = { [weak self] path in
-            guard let self else { return }
-            let nowOnline = path.status == .satisfied
-            let wasOffline = !self.isOnline
-            self.isOnline = nowOnline
-            if nowOnline && wasOffline {
-                DispatchQueue.main.async { self.onBecameOnline() }
-            }
+            let online = path.status == .satisfied
+            Task { @MainActor in self?.update(online: online) }
         }
         monitor.start(queue: queue)
     }
 
-    func stop() { monitor.cancel() }
+    func stop() {
+        monitor.cancel()
+        started = false
+    }
+
+    private func update(online: Bool) {
+        let wasOnline = isOnline
+        isOnline = online
+        if online && !wasOnline {
+            onBecameOnline()
+        }
+    }
 }

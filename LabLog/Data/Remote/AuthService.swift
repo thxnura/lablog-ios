@@ -1,0 +1,131 @@
+import Foundation
+import Observation
+
+/// Student sign-in against Supabase Auth (GoTrue REST, no SDK). The resulting
+/// JWT is what the Express API verifies in `requireAuth`. The session is kept
+/// in the Keychain and refreshed shortly before it expires.
+@MainActor
+@Observable
+final class AuthService {
+    struct Session: Codable {
+        var accessToken: String
+        var refreshToken: String
+        var expiresAt: Date
+        var email: String?
+    }
+
+    enum AuthError: LocalizedError {
+        case notConfigured
+        case server(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .notConfigured: "Supabase isn't configured in this build (see Config/Secrets.xcconfig)."
+            case .server(let message): message
+            }
+        }
+    }
+
+    private(set) var session: Session?
+    var isSignedIn: Bool { session != nil }
+
+    @ObservationIgnored private let config: AppConfig
+    @ObservationIgnored private let keychain = KeychainStore(service: "com.thxnura.LabLog", account: "supabase-session")
+    @ObservationIgnored private var refreshTask: Task<Session?, Never>?
+
+    init(config: AppConfig) {
+        self.config = config
+        if let data = keychain.load() {
+            session = try? JSONDecoder().decode(Session.self, from: data)
+        }
+    }
+
+    func signIn(email: String, password: String) async throws {
+        let response = try await tokenRequest(grantType: "password", body: ["email": email, "password": password])
+        store(response)
+    }
+
+    func signOut() {
+        session = nil
+        keychain.delete()
+    }
+
+    /// A non-expired access token, refreshing it if it expires within a minute.
+    func validAccessToken() async -> String? {
+        guard let current = session else { return nil }
+        if current.expiresAt.timeIntervalSinceNow > 60 { return current.accessToken }
+
+        // Coalesce concurrent refreshes into one request.
+        if refreshTask == nil {
+            refreshTask = Task { [weak self] in
+                guard let self else { return nil }
+                do {
+                    let response = try await tokenRequest(grantType: "refresh_token", body: ["refresh_token": current.refreshToken])
+                    store(response)
+                } catch {
+                    // A rejected refresh token means the session is dead.
+                    if case AuthError.server = error { signOut() }
+                }
+                return session
+            }
+        }
+        let refreshed = await refreshTask?.value
+        refreshTask = nil
+        return refreshed?.accessToken
+    }
+
+    // MARK: GoTrue
+
+    private struct TokenResponse: Decodable {
+        struct User: Decodable { let email: String? }
+        let accessToken: String
+        let refreshToken: String
+        let expiresIn: Double
+        let user: User?
+    }
+
+    private struct ErrorBody: Decodable {
+        let msg: String?
+        let errorDescription: String?
+        let message: String?
+        var text: String? { msg ?? errorDescription ?? message }
+    }
+
+    private func tokenRequest(grantType: String, body: [String: String]) async throws -> TokenResponse {
+        guard let supabaseURL = config.supabaseURL, let anonKey = config.supabaseAnonKey else {
+            throw AuthError.notConfigured
+        }
+        var components = URLComponents(url: supabaseURL.appendingPathComponent("auth/v1/token"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "grant_type", value: grantType)]
+        guard let url = components?.url else { throw AuthError.notConfigured }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            let message = (try? decoder.decode(ErrorBody.self, from: data))?.text
+            throw AuthError.server(message ?? "Sign-in failed (\((response as? HTTPURLResponse)?.statusCode ?? -1)).")
+        }
+        return try decoder.decode(TokenResponse.self, from: data)
+    }
+
+    private func store(_ response: TokenResponse) {
+        let newSession = Session(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            expiresAt: Date().addingTimeInterval(response.expiresIn),
+            email: response.user?.email ?? session?.email,
+        )
+        session = newSession
+        if let data = try? JSONEncoder().encode(newSession) {
+            keychain.save(data)
+        }
+    }
+}
