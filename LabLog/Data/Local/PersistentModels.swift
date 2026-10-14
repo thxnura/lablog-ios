@@ -49,6 +49,10 @@ final class StepEntity {
     var requiresPhoto: Bool
     var minDurationSeconds: Int?
     var prerequisiteStepIds: [UUID]
+    // Guide content (added in catalog v2 — optional so existing stores migrate).
+    var guideSteps: [String]?
+    var safetyNote: String?
+    var expectedResult: String?
 
     init(_ step: Step) {
         id = step.id
@@ -59,12 +63,17 @@ final class StepEntity {
         requiresPhoto = step.requiresPhoto
         minDurationSeconds = step.minDurationSeconds
         prerequisiteStepIds = step.prerequisiteStepIds
+        guideSteps = step.guide?.steps
+        safetyNote = step.guide?.safety
+        expectedResult = step.guide?.expected
     }
 
     var domain: Step {
-        Step(id: id, experimentId: experimentId, order: position, title: title,
-             instruction: instruction, requiresPhoto: requiresPhoto,
-             minDurationSeconds: minDurationSeconds, prerequisiteStepIds: prerequisiteStepIds)
+        let guide = StepGuide(steps: guideSteps ?? [], safety: safetyNote, expected: expectedResult)
+        return Step(id: id, experimentId: experimentId, order: position, title: title,
+                    instruction: instruction, requiresPhoto: requiresPhoto,
+                    minDurationSeconds: minDurationSeconds, prerequisiteStepIds: prerequisiteStepIds,
+                    guide: guide.isEmpty ? nil : guide)
     }
 }
 

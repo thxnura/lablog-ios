@@ -29,7 +29,88 @@ enum CatalogSeed {
     static let labs = [chemistryLab, physicsLab]
     static let experiments = [recrystallisation, titration, pendulum]
 
-    static let steps: [Step] = {
+    /// Bump when the bundled catalog changes so devices that already cached an
+    /// older copy pick up the new content (v2 added step guides).
+    static let version = 2
+
+    /// Step guides (how-to, safety, expected result). Mirrors the guide columns in seed.sql.
+    static let guides: [String: StepGuide] = [
+        "33333333-0000-0000-0000-000000000001": StepGuide(
+            steps: ["Tare the balance with a clean, dry weighing boat.", "Add about 2 g of the impure benzoic acid.", "Record the mass to 0.01 g in your observations."],
+            safety: "Benzoic acid irritates the eyes, so keep your goggles on.",
+            expected: "A steady reading of roughly 2.00 g.",
+        ),
+        "33333333-0000-0000-0000-000000000002": StepGuide(
+            steps: ["Heat distilled water to boiling on the hot plate.", "Add hot water a few mL at a time to the sample in a conical flask, swirling between additions.", "Stop as soon as the solid dissolves. Extra solvent lowers your yield."],
+            safety: "Hot glassware: handle it with tongs or a heat-proof glove.",
+            expected: "A clear, colourless solution with no solid left.",
+        ),
+        "33333333-0000-0000-0000-000000000003": StepGuide(
+            steps: ["Keep the flask just below boiling on the hot plate.", "Swirl gently about once a minute.", "If insoluble specks remain, filter the solution while it is still hot."],
+            safety: "Never stopper or seal a heated flask.",
+            expected: "The sample is fully dissolved after five minutes.",
+        ),
+        "33333333-0000-0000-0000-000000000004": StepGuide(
+            steps: ["Let the flask cool to room temperature without disturbing it.", "Then cool it in an ice bath for 10 minutes.", "Photograph the crystals against a dark background."],
+            safety: nil,
+            expected: "Shiny white crystals, needle- or plate-shaped.",
+        ),
+        "33333333-0000-0000-0001-000000000001": StepGuide(
+            steps: ["Rinse the burette twice with a little NaOH, draining it through the tap.", "Fill it with 0.10 M NaOH using a funnel, then take the funnel out.", "Run a little solution out to clear the air bubble from the tip.", "Read the bottom of the meniscus at eye level."],
+            safety: "NaOH is corrosive. Wear goggles and rinse any spill with plenty of water.",
+            expected: "No air in the tip, and an initial reading recorded to 0.05 mL.",
+        ),
+        "33333333-0000-0000-0001-000000000002": StepGuide(
+            steps: ["Rinse the pipette with a little of the HCl.", "Fill it to the line with a pipette filler.", "Let it drain into the flask, then touch the tip against the glass."],
+            safety: "Always use a pipette filler. Never pipette by mouth.",
+            expected: "Exactly 25.0 mL of acid in the flask.",
+        ),
+        "33333333-0000-0000-0001-000000000003": StepGuide(
+            steps: ["Add 3 drops of phenolphthalein.", "Swirl to mix.", "Stand the flask on a white tile under the burette."],
+            safety: nil,
+            expected: "The solution stays colourless, because it is still acidic.",
+        ),
+        "33333333-0000-0000-0001-000000000004": StepGuide(
+            steps: ["Run in NaOH quickly while swirling, until the pink takes longer to fade.", "Slow down to drop by drop.", "Stop at the first faint pink that lasts 30 seconds.", "Photograph the endpoint, then record the final burette reading."],
+            safety: "Close the tap before you move the flask.",
+            expected: "A pale pink colour that persists for 30 seconds.",
+        ),
+        "33333333-0000-0000-0001-000000000005": StepGuide(
+            steps: ["Refill the burette and rinse the flask with distilled water.", "Repeat Steps 2 to 4.", "Stop when two titres agree within 0.10 mL."],
+            safety: nil,
+            expected: "Two concordant titres, for example 24.60 and 24.55 mL.",
+        ),
+        "33333333-0000-0000-0002-000000000001": StepGuide(
+            steps: ["Clamp the string so the bob hangs freely.", "Measure from the pivot to the centre of the bob with a metre rule.", "Record the length in metres, to the nearest millimetre."],
+            safety: nil,
+            expected: "A length between about 0.50 and 1.00 m.",
+        ),
+        "33333333-0000-0000-0002-000000000002": StepGuide(
+            steps: ["Fix the clamp stand to the bench with a G-clamp.", "Stand the ruler behind the pendulum.", "Photograph the whole rig with the ruler markings readable."],
+            safety: "Clamp the stand firmly so it can't tip over.",
+            expected: "A clear photo showing the clamp, string, bob and ruler.",
+        ),
+        "33333333-0000-0000-0002-000000000003": StepGuide(
+            steps: ["Pull the bob aside to an angle under 10°.", "Release it without pushing, and start timing as it passes the centre.", "Count 20 full swings (there and back), then stop the timer."],
+            safety: "Keep your face clear of the swinging bob.",
+            expected: "About 28 s for a 0.50 m string (a period of about 1.4 s).",
+        ),
+        "33333333-0000-0000-0002-000000000004": StepGuide(
+            steps: ["Shorten the string by about 20 cm.", "Re-measure the length and time 20 swings again.", "Repeat for a third length."],
+            safety: nil,
+            expected: "Shorter strings give shorter periods (T is proportional to √L).",
+        ),
+    ]
+
+    static var steps: [Step] {
+        baseSteps.map { step in
+            var step = step
+            step.guide = guides[step.id.uuidString.lowercased()]
+            return step
+        }
+    }
+
+    private static let baseSteps: [Step] = {
         let r1 = id("33333333-0000-0000-0000-000000000001")
         let r2 = id("33333333-0000-0000-0000-000000000002")
         let r3 = id("33333333-0000-0000-0000-000000000003")
@@ -95,10 +176,13 @@ enum CatalogSeed {
         ]
     }()
 
-    /// Loads the bundled catalog if the device has never cached one.
+    /// Loads the bundled catalog if the device has never cached one, or if the
+    /// cached copy came from an older bundled version.
     @MainActor
-    static func installIfNeeded(into store: LocalStore) {
-        guard !store.hasCatalog() else { return }
+    static func installIfNeeded(into store: LocalStore, defaults: UserDefaults = .standard) {
+        let key = "bundledCatalogVersion"
+        guard !store.hasCatalog() || defaults.integer(forKey: key) < version else { return }
         store.replaceCatalog(labs: labs, experiments: experiments, steps: steps)
+        defaults.set(version, forKey: key)
     }
 }

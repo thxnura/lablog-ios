@@ -33,6 +33,7 @@ private struct RecordCaptureContent: View {
     @State private var toastTask: Task<Void, Never>?
     @State private var confirmSubmit = false
     @State private var thumbnails: [UUID: UIImage] = [:]
+    @State private var guide: GuideTarget?
     @FocusState private var observationFocused: Bool
 
     private static let observationLimit = 5000 // backend zod max
@@ -52,6 +53,7 @@ private struct RecordCaptureContent: View {
                     onStepCompleted: { _, completion in model.persist(completion) },
                     onPhotoRequested: { step in requestPhoto(for: step) },
                     onLockedStepTapped: { _, reason in show(reason) },
+                    onStepSelected: { step in guide = GuideTarget(id: step.id) },
                 )
 
                 if !model.attachments.isEmpty {
@@ -116,18 +118,26 @@ private struct RecordCaptureContent: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
-        .confirmationDialog("Submit this lab record?", isPresented: $confirmSubmit, titleVisibility: .visible) {
-            Button("Submit") { Task { await model.submit() } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("It will be stamped with your location and can't be edited afterwards.")
+        .sheet(isPresented: $confirmSubmit) {
+            SubmitReviewSheet(model: model)
         }
         .sensoryFeedback(.success, trigger: model.isEditable) { wasEditable, isEditable in
             wasEditable && !isEditable
         }
+        .sheet(item: $guide) { target in
+            StepGuideSheet(model: model, stepId: target.id)
+        }
         .onChange(of: model.attachments) { loadThumbnails() }
-        .onAppear { loadThumbnails() }
-        .onDisappear { model.saveObservationNow() }
+        .onAppear {
+            app.visibleRecordId = model.recordId
+            loadThumbnails()
+            openPendingDeepLink()
+        }
+        .onChange(of: app.pendingDeepLink) { openPendingDeepLink() }
+        .onDisappear {
+            if app.visibleRecordId == model.recordId { app.visibleRecordId = nil }
+            model.saveObservationNow()
+        }
     }
 
     // MARK: Header
@@ -185,9 +195,21 @@ private struct RecordCaptureContent: View {
             Spacer(minLength: 0)
         }
         .card()
+        // Combine the card into one VoiceOver element *before* adding the timer
+        // pill, so the pill stays its own button (failure 005).
+        .accessibilityElement(children: .combine)
+        .overlay(alignment: .bottom) {
+            if let timed = model.timedStep {
+                LiveTimerPill(timed: timed) { guide = GuideTarget(id: timed.step.id) }
+                    // Hang below the card, overlapping only its bottom padding.
+                    .offset(y: 30)
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+        }
+        .padding(.bottom, model.timedStep == nil ? 0 : 34)
+        .animation(Theme.spring, value: model.timedStep?.step.id)
         .padding(.top, Theme.Space.s)
         .animation(Theme.spring, value: model.completedCount)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: Evidence
@@ -206,7 +228,6 @@ private struct RecordCaptureContent: View {
             }
             .scrollClipDisabled()
         }
-        .accessibilityIdentifier("evidence-section")
     }
 
     // MARK: Observation
@@ -281,6 +302,15 @@ private struct RecordCaptureContent: View {
         }
         #endif
         cameraStep = step
+    }
+
+    /// A Live Activity / notification asked to open a step of this record.
+    private func openPendingDeepLink() {
+        guard let link = app.pendingDeepLink, link.recordId == model.recordId else { return }
+        app.pendingDeepLink = nil
+        if let stepId = link.stepId {
+            guide = GuideTarget(id: stepId)
+        }
     }
 
     private func show(_ message: String) {
@@ -397,6 +427,52 @@ private struct SubmissionReceipt: View {
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         }
-        .accessibilityIdentifier("submission-receipt")
+    }
+}
+
+/// Floating pill under the header while a timed step is waiting: live
+/// countdown + ring; tap to open that step's guide (the full timer dial).
+private struct LiveTimerPill: View {
+    let timed: StepTimerCoordinator.TimedStep
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let remaining = max(0, Int(ceil(timed.end.timeIntervalSince(context.date))))
+                let total = max(timed.end.timeIntervalSince(timed.start), 1)
+                let ready = remaining == 0
+                HStack(spacing: 8) {
+                    ZStack {
+                        ProgressRing(progress: ready ? 1 : 1 - Double(remaining) / total, lineWidth: 3,
+                                     tint: ready ? Theme.success : Theme.caution)
+                        Image(systemName: ready ? "checkmark" : "hourglass")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(ready ? Theme.success : Theme.caution)
+                    }
+                    .frame(width: 22, height: 22)
+                    Text("Step \(timed.step.order)")
+                        .foregroundStyle(.secondary)
+                    Text(ready ? "Ready" : StepGuideSheet.format(remaining))
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                        .foregroundStyle(ready ? Theme.success : .primary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder((ready ? Theme.success : Theme.caution).opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                .animation(.snappy, value: remaining)
+            }
+        }
+        .buttonStyle(.pressableCard)
+        .accessibilityLabel("Step \(timed.step.order) timer")
+        .accessibilityHint("Opens the step guide")
+        .accessibilityIdentifier("timer-pill")
     }
 }

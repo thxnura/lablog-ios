@@ -27,6 +27,17 @@ struct Step: Identifiable, Codable, Hashable {
     let minDurationSeconds: Int?
     /// Precedence edges: these steps must be complete before this one unlocks.
     let prerequisiteStepIds: [UUID]
+    /// How-to content shown in the step guide. Optional: older catalogs have none.
+    var guide: StepGuide? = nil
+}
+
+/// Teaching content for one step: sub-steps, a safety note, what success looks like.
+struct StepGuide: Codable, Hashable {
+    var steps: [String]
+    var safety: String?
+    var expected: String?
+
+    var isEmpty: Bool { steps.isEmpty && safety == nil && expected == nil }
 }
 
 // MARK: - Record (created on device, synced up)

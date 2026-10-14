@@ -19,23 +19,45 @@ struct ChecklistRow: View {
     /// Connector below this node is "filled" once this step is done.
     var connectorFilled = false
     var thumbnail: UIImage?
-    let onTap: () -> Void
+    /// Tapping the status circle: complete / take photo / explain the lock.
+    let onNodeTap: () -> Void
+    /// Tapping the card: open the step guide (falls back to `onNodeTap`).
+    var onCardTap: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: Theme.Space.m) {
+        HStack(alignment: .top, spacing: Theme.Space.m) {
+            Button(action: onNodeTap) {
                 node
+                    // A taller hit area than the 30-pt circle itself.
+                    .padding(.bottom, 12)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressableCard)
+            .accessibilityLabel(nodeAccessibilityLabel)
+            .accessibilityIdentifier("step-node-\(step.order)")
+
+            Button(action: onCardTap ?? onNodeTap) {
                 card
             }
+            .buttonStyle(.pressableCard)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Step \(step.order), \(step.title)")
+            .accessibilityValue(accessibilityState)
+            .accessibilityHint(onCardTap == nil ? accessibilityHint : "Double-tap to open the step guide")
+            .accessibilityIdentifier("step-\(step.order)")
         }
-        .buttonStyle(.pressableCard)
         .background(alignment: .topLeading) { connector }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Step \(step.order), \(step.title)")
-        .accessibilityValue(accessibilityState)
-        .accessibilityHint(accessibilityHint)
+    }
+
+    private var nodeAccessibilityLabel: String {
+        switch state {
+        case .available: "Mark step \(step.order) done"
+        case .needsPhoto: "Take photo for step \(step.order)"
+        case .completed: "Step \(step.order) done"
+        case .timerPending, .locked: "Step \(step.order) locked"
+        }
     }
 
     // MARK: Rail
@@ -115,6 +137,12 @@ struct ChecklistRow: View {
                     .padding(.top, 2)
             }
             Spacer(minLength: 0)
+            if onCardTap != nil && thumbnail == nil {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+            }
             if let thumbnail {
                 Image(uiImage: thumbnail)
                     .resizable()
@@ -217,10 +245,10 @@ struct ChecklistRow: View {
     private var statusText: String {
         switch state {
         case .locked(let reason): reason
-        case .needsPhoto: "Tap to take the evidence photo"
+        case .needsPhoto: "Tap the circle to take the evidence photo"
         case .timerPending(let text, _): text
         case .completed(let at): "Done at \(at.formatted(date: .omitted, time: .shortened))"
-        case .available: step.requiresPhoto ? "Photo attached · tap to finish" : "Tap to mark done"
+        case .available: step.requiresPhoto ? "Photo attached · tap the circle to finish" : "Tap the circle to mark done"
         }
     }
 

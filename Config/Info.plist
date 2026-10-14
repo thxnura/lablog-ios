@@ -10,6 +10,19 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to the LabLog server on your local network to sync lab records.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.thxnura.LabLog</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lablog</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

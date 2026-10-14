@@ -21,6 +21,12 @@ import SwiftUI
 ///                                            successors re-evaluate automatically
 ///   - onPhotoRequested(Step)                 a requiresPhoto step needs the camera
 ///   - onLockedStepTapped(Step, String)       user tapped a locked step → reason text
+///   - onStepSelected(Step)?                  user tapped a step card → open its guide.
+///                                            When nil, a card tap acts like a circle tap.
+///
+/// Interaction: the status circle is the quick action (complete / photo /
+/// explain lock); the card opens the guide. A haptic fires the moment a timer
+/// guard runs out and the step becomes available.
 ///
 /// Row states: locked (+reason), available, completed (+time), needs-photo,
 /// timer-pending (live countdown ring).
@@ -37,9 +43,12 @@ struct ExperimentChecklist: View {
     var onStepCompleted: (Step, StepCompletion) -> Void = { _, _ in }
     var onPhotoRequested: (Step) -> Void = { _ in }
     var onLockedStepTapped: (Step, String) -> Void = { _, _ in }
+    var onStepSelected: ((Step) -> Void)? = nil
 
     /// Drives the warning haptic for taps on locked steps.
     @State private var lockedTapCount = 0
+    /// Drives the "time's up" haptic.
+    @State private var finishedTimers = 0
 
     private var orderedSteps: [Step] {
         steps.sorted { $0.order < $1.order }
@@ -80,16 +89,29 @@ struct ExperimentChecklist: View {
                         isLast: index == ordered.count - 1,
                         connectorFilled: completions.contains { $0.stepId == step.id },
                         thumbnail: photoThumbnails[step.id],
-                        onTap: { handleTap(step) },
+                        onNodeTap: { handleTap(step) },
+                        onCardTap: onStepSelected.map { select in { select(step) } },
                     )
-                    .accessibilityIdentifier("step-\(step.order)")
                 }
+            }
+            .onChange(of: runningTimerIds(now: timeline.date)) { before, after in
+                // A timer that just ran out (and wasn't completed) → step is now available.
+                if !before.subtracting(after).isEmpty { finishedTimers += 1 }
             }
         }
         .animation(Theme.spring, value: completions)
         .animation(Theme.spring, value: photoStepIds)
         .sensoryFeedback(.success, trigger: completions.count)
         .sensoryFeedback(.warning, trigger: lockedTapCount)
+        .sensoryFeedback(.levelChange, trigger: finishedTimers)
+    }
+
+    private func runningTimerIds(now: Date) -> Set<UUID> {
+        let ctx = context(now: now)
+        return Set(orderedSteps.filter { step in
+            if case .timerPending? = engine.lockReason(for: step, context: ctx) { return true }
+            return false
+        }.map(\.id))
     }
 
     private func rowState(for step: Step, now: Date) -> ChecklistRow.RowState {

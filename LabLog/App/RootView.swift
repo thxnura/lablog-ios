@@ -4,24 +4,40 @@ import SwiftUI
 /// three taps from the checklist, and sync never blocks the lab work.
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @State private var tab: Tab = .labs
+    @State private var labsPath = NavigationPath()
+
+    enum Tab: Hashable { case labs, records, sync }
 
     var body: some View {
-        TabView {
-            NavigationStack {
+        TabView(selection: $tab) {
+            NavigationStack(path: $labsPath) {
                 LabListView()
             }
             .tabItem { Label("Labs", systemImage: "flask.fill") }
+            .tag(Tab.labs)
 
             NavigationStack {
                 RecordsListView()
             }
             .tabItem { Label("Records", systemImage: "list.bullet.clipboard.fill") }
+            .tag(Tab.records)
 
             NavigationStack {
                 SyncStatusView()
             }
             .tabItem { Label("Sync", systemImage: "arrow.clockwise.icloud.fill") }
             .badge(app.sync.pendingCount)
+            .tag(Tab.sync)
+        }
+        // Dynamic Island / Lock Screen / notification → record → step guide.
+        .onOpenURL { app.open($0) }
+        .onChange(of: app.pendingDeepLink) { _, link in
+            guard let link, app.visibleRecordId != link.recordId else { return }
+            tab = .labs
+            var path = NavigationPath()
+            path.append(RecordRoute(id: link.recordId))
+            labsPath = path
         }
     }
 }

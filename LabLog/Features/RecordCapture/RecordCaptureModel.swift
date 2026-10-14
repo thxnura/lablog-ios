@@ -51,6 +51,23 @@ final class RecordCaptureModel {
         if observationSaveTask == nil {
             observationText = store.observation(recordId: recordId)?.text ?? ""
         }
+        // Keep the Dynamic Island timer in step with the checklist.
+        app.refreshTimers(recordId: recordId)
+    }
+
+    /// The timed step currently waiting (drives the guide's timer dial).
+    var timedStep: StepTimerCoordinator.TimedStep? {
+        guard isEditable else { return nil }
+        return StepTimerCoordinator.timedStep(steps: steps, completions: completions)
+    }
+
+    /// Complete a step from the step guide. Goes through the same constraint
+    /// check as everywhere else; returns false if the step is still locked.
+    @discardableResult
+    func complete(_ step: Step) -> Bool {
+        let done = app.completeStep(recordId: recordId, stepId: step.id)
+        load()
+        return done
     }
 
     // MARK: Actions
@@ -109,7 +126,8 @@ final class RecordCaptureModel {
 
     /// Stamp location (best effort, bounded wait) and mark the record submitted.
     func submit() async {
-        guard canSubmit else { return }
+        guard isEditable, !isSubmitting,
+              engine.isComplete(steps, completedStepIds: Set(completions.map(\.stepId))) else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         saveObservationNow()
