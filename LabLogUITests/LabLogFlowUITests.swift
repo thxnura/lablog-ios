@@ -216,4 +216,64 @@ final class LabLogFlowUITests: XCTestCase {
         sleep(1)
         snap("20-home-continue")
     }
+    /// Real round trip: sign in as the demo student, complete steps (incl. a
+    /// photo), and watch the outbox drain to the backend. Needs
+    /// Config/Secrets.xcconfig + `supabase start` + `npm run dev` in
+    /// lablog-backend; skipped otherwise.
+    func testSignInAndSyncToServer() throws {
+        app.tabBars.buttons["Sync"].tap()
+        // The account card sits low on the screen; bring it above the tab bar.
+        app.swipeUp()
+        if element("sign-out").waitForExistence(timeout: 2) {
+            element("sign-out").tap()
+            app.swipeUp()
+        }
+        let signIn = element("sign-in")
+        guard signIn.waitForExistence(timeout: 5) else {
+            // Put the screen in the log: xcodebuild sometimes hangs after a
+            // failure and the .xcresult (with its hierarchy) is lost.
+            return XCTFail("No sign-in button. Screen:\n\(app.debugDescription)")
+        }
+        guard signIn.isEnabled else { throw XCTSkip("No backend configured in this build") }
+        snap("21-sync-signed-out")
+
+        signIn.tap()
+        let email = element("email")
+        XCTAssertTrue(email.waitForExistence(timeout: 5))
+        sleep(1) // sheet settles; the email field focuses itself
+        email.typeText("student@lablog.test")
+        let password = element("password")
+        password.tap()
+        password.typeText("LabLog-Student-1")
+        snap("22-sign-in")
+        element("sign-in-submit").tap()
+        XCTAssertTrue(element("sign-out").waitForExistence(timeout: 15), "sign-in against Supabase Auth")
+
+        // Create work locally: two steps, one with a photo → record + upload.
+        sleep(1) // let the sign-in sheet finish dismissing
+        app.tabBars.buttons["Labs"].tap()
+        XCTAssertTrue(element("lab-PHYS101").waitForExistence(timeout: 10))
+        element("lab-PHYS101").tap()
+        XCTAssertTrue(element("experiment-Simple Pendulum").waitForExistence(timeout: 5))
+        element("experiment-Simple Pendulum").tap()
+        XCTAssertTrue(element("start-record").waitForExistence(timeout: 5))
+        element("start-record").tap()
+        tapNode(1)
+        tapNode(2)
+        allowSystemAlertIfShown(["Allow"])
+        sleep(2)
+        goBack(times: 3)
+
+        app.tabBars.buttons["Sync"].tap()
+        app.swipeDown()
+        let synced = app.staticTexts["Everything is synced"]
+        if !synced.waitForExistence(timeout: 20) {
+            element("sync-now").tap()
+            XCTAssertTrue(synced.waitForExistence(timeout: 20), "outbox drained to the server")
+        }
+        sleep(1)
+        snap("23-synced-to-server")
+        app.swipeUp()
+        element("sign-out").tap()
+    }
 }

@@ -37,6 +37,7 @@ struct SignInView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .focused($focus, equals: .email)
+                                .accessibilityIdentifier("email")
                                 .submitLabel(.next)
                                 .onSubmit { focus = .password }
                         }
@@ -44,6 +45,7 @@ struct SignInView: View {
                             SecureField("Password", text: $password)
                                 .textContentType(.password)
                                 .focused($focus, equals: .password)
+                                .accessibilityIdentifier("password")
                                 .submitLabel(.go)
                                 .onSubmit { Task { await signIn() } }
                         }
@@ -65,6 +67,7 @@ struct SignInView: View {
                     .buttonBorderShape(.capsule)
                     .controlSize(.large)
                     .disabled(email.isEmpty || password.isEmpty || isWorking)
+                    .accessibilityIdentifier("sign-in-submit")
                 }
                 .padding(.horizontal, Theme.Space.xl)
                 .animation(Theme.spring, value: error)
@@ -77,6 +80,9 @@ struct SignInView: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.canvas)
+        // Keyboard up straight away: one less tap with gloves on.
+        .task { focus = .email }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
     }
 

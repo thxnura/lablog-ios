@@ -13,7 +13,8 @@ struct SyncStatusView: View {
                 SyncHero(status: app.sync.status,
                          pendingCount: app.sync.pendingCount,
                          lastSyncedAt: app.sync.lastSyncedAt,
-                         onSync: { Task { await app.sync.sync() } })
+                         onSync: { Task { await app.sync.sync() } },
+                         onSignIn: { showSignIn = true })
 
                 VStack(alignment: .leading, spacing: Theme.Space.m) {
                     SectionHeader(title: "Connection")
@@ -45,6 +46,7 @@ struct SyncStatusView: View {
                             Divider()
                             Button("Sign out", role: .destructive) { app.auth.signOut() }
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityIdentifier("sign-out")
                         } else {
                             InfoRow(symbol: "person.crop.circle.badge.questionmark", title: "Not signed in", tint: .secondary) {
                                 EmptyView()
@@ -57,6 +59,7 @@ struct SyncStatusView: View {
                             .buttonStyle(.bordered)
                             .buttonBorderShape(.capsule)
                             .disabled(!app.config.isBackendConfigured)
+                            .accessibilityIdentifier("sign-in")
                             if !app.config.isBackendConfigured {
                                 Text("This build has no server configured, so everything stays on the device. Add Config/Secrets.xcconfig to enable sync.")
                                     .font(.caption)
@@ -119,6 +122,7 @@ private struct SyncHero: View {
     let pendingCount: Int
     let lastSyncedAt: Date?
     let onSync: () -> Void
+    let onSignIn: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -140,8 +144,17 @@ private struct SyncHero: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            // No server in this build → the action could never succeed, so hide it.
-            if status != .notConfigured {
+            // The hero's one action is whatever unblocks sync next.
+            if status == .signedOut {
+                Button(action: onSignIn) {
+                    PrimaryButtonLabel(title: "Sign in", symbol: "person.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
+                .accessibilityIdentifier("hero-sign-in")
+            } else if status != .notConfigured {
+                // (No server in this build → syncing could never succeed, so no button.)
                 Button(action: onSync) {
                     PrimaryButtonLabel(title: status == .syncing ? "Syncing…" : "Sync now",
                                        symbol: "arrow.triangle.2.circlepath",
