@@ -1,0 +1,17 @@
+# npm run dev (lablog-backend) — 2026-10-14
+
+$ npm run dev
+Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at Server.listen (node:net:2099:7)
+    at Function.listen (/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-backend/node_modules/express/lib/application.js:635:24)
+    at <anonymous> (/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-backend/src/server.ts:6:5)
+    at Object.<anonymous> (/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-backend/src/server.ts:8:2)
+
+$ curl http://192.168.1.8:3000/api/health
+<!DOCTYPE html>… <title>thxnura.labs — Digital Solutions That Ship</title> … 404: This page could not be found.  (404)
+
+$ lsof -nP -iTCP:3000 -sTCP:LISTEN
+COMMAND   PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    47646 thxnura   16u  IPv6 0x687f42a6815ce481      0t0  TCP *:3000 (LISTEN)

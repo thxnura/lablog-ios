@@ -77,6 +77,29 @@ On the Mac this showed up as a repeating "LabLog quit unexpectedly" dialog.
 **Fix:** Use an explicit `HStack { Image; Text }` with `.lineLimit(1).fixedSize()` for badges and the Network value.
 **AI result:** partially. The first fix was wrong (icon only); the second worked.
 
+### [2026-10-14] Backend couldn't start: port 3000 already in use
+**Type:** runtime crash (backend)
+**What I was doing:** Starting the Express API (`npm run dev`) to connect the app to a local Supabase stack for the first real end-to-end sync.
+**Error / output:**
+    Error: listen EADDRINUSE: address already in use :::3000
+      code: 'EADDRINUSE', address: '::', port: 3000
+    $ curl http://192.168.1.8:3000/api/health  →  thxnura.labs Next.js 404 page
+**Screenshot:** ![port](screenshots/008-port-3000-in-use.png) (raw: [`008-port-3000-in-use.log`](screenshots/008-port-3000-in-use.log))
+**Cause:** Port 3000 (the default in `.env.example`) was already taken on my Mac by another project's Next.js dev server. The health check reached that site instead of LabLog.
+**Fix:** The local setup script now writes `PORT=3100` by default (configurable with `--port`) and generates the matching iOS `Secrets.xcconfig`. I didn't touch the other server.
+**AI prompt used:**
+    > yes continue and do next build
+**AI result:** worked.
+
+### [2026-10-14] Flaky sign-in UI test (three different failures)
+**Type:** logic (UI test)
+**What I was doing:** Adding `testSignInAndSyncToServer`, which signs in as the demo student and checks the outbox drains to the real backend.
+**Error / output:** Run 1: `LabLogFlowUITests.swift:227: XCTAssertTrue failed` (no sign-in button). Run 2: `Failed to tap "lab-PHYS101" … No matches found`. Run 3: `Failed to synthesize event: Neither element nor any descendant has keyboard focus`.
+**Screenshot:** ![flaky](screenshots/009-flaky-sign-in-ui-test.png) (raw: [`009-flaky-sign-in-ui-test.log`](screenshots/009-flaky-sign-in-ui-test.log))
+**Cause:** Run 1 is uncertain; a hierarchy dump in the next run showed the button half under the floating tab bar. Run 2: the test tapped the Labs tab while the sign-in sheet was still dismissing. Run 3: tapping the email field during the sheet animation didn't give it keyboard focus.
+**Fix:** In the app, the sign-in sheet now focuses the email field itself (a UX gain: the keyboard is up straight away). In the test: scroll the account card into view, wait for the sheet to settle and for the Labs list to appear, and print the screen hierarchy on failure, because `xcodebuild` keeps hanging after failures and losing the `.xcresult`. Run 4 passed, and the record, 2 steps and the photo were confirmed in Postgres and Storage.
+**AI result:** partially. It took three attempts.
+
 ### [2026-10-12] Submit confirmation rendered as a popover pointing at a step card (UX)
 **Type:** logic (UI/UX)
 **What I was doing:** Submitting a record on my iPhone (iOS 27.2, dark mode).

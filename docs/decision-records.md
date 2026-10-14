@@ -91,6 +91,16 @@
 **Decision.** Submission goes through `SubmitReviewSheet`. It shows what will be handed in (steps, photos, observation, location stamp), warns if there is no observation, has one primary action, and ends in an animated success state with a haptic. The Live Activity gains overall progress (step X of N plus progress dots), the lab name, start and ready times, an "Up next" line, a Guide link, and a distinct ready state (green "Wait over" with a prominent Mark done).
 **Consequences.** Students confirm with full information (Apple's Agency principle: confirm only irreversible actions, with context). The island is useful at a glance. `StepTimerAttributes` carries more fields, and the coordinator updates the activity when other steps finish during a wait.
 
+## ADR-018 — Local Supabase stack for real end-to-end testing
+**Context.** Sync was only unit-tested against a fake API. The schema and seed had never run on a real Postgres, and there was no hosted Supabase project yet.
+**Decision.** Run the Supabase stack locally with the CLI in Docker: Postgres, Auth (GoTrue), Storage and the API gateway, skipping services LabLog doesn't use. `supabase/` points at `db/schema.sql` and `db/seed.sql`, so `db/` stays the single source of truth, and it declares the private `evidence` bucket. `npm run local:setup [--host <LAN IP>] [--port 3100]` writes `.env`, creates demo student and lecturer accounts, and prints the iOS `Secrets.xcconfig`. `npm run test:e2e` runs 10 HTTP tests against the real stack, and a UI test signs in from the app and syncs.
+**Consequences.** The whole path (app → signed upload → API → Postgres + Storage) is proven, and the viva demo can run offline from the internet on a laptop. Moving to a hosted project means running the same SQL and changing `.env` and `Secrets.xcconfig`. Docker must be running.
+
+## ADR-019 — Lecturer role in app_metadata; ownership checks on sync
+**Context.** `GET /api/records` returned every submission to any signed-in user. Also, because sync upserts by client UUID, a student who learned another student's record id could overwrite its owner.
+**Decision.** The role comes from the JWT user's `app_metadata.role`, which only the service role can set, so students can't promote themselves. `requireRole('lecturer')` guards `/records`, and the `experimentId` query is validated as a UUID (422 otherwise). Before any upsert, `assertOwnership` refuses a record id owned by another student (403) and child ids (completions, observations, attachments) that belong to another record (409). The lecturer response is camelCase, with the student's email and 1-hour signed URLs for photos in the private bucket.
+**Consequences.** Idempotent retries still work for the owner, and hijacking is blocked. E2E tests cover both, plus the 403 for students. It costs one extra lookup per record per sync.
+
 <!-- ADR-00N — <title>
 **Context.** …
 **Decision.** …

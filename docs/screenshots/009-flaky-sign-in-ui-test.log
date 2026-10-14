@@ -1,0 +1,13 @@
+# xcodebuild test — testSignInAndSyncToServer, three failing runs (2026-10-14)
+
+## Run 1 — sign-in button not found within 5 s (cause uncertain; the next run's dump showed it half under the floating tab bar)
+LabLogUITests/LabLogFlowUITests.swift:227: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : XCTAssertTrue failed
+
+## Run 2 — tapped the Labs tab while the sign-in sheet was still dismissing
+<unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : Failed to tap "lab-PHYS101" Any: No matches found for first query match sequence: `Descendants matching type Any` -> 
+
+## Run 3 — email field never got keyboard focus
+<unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : Failed to synthesize event: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: TextField
+
+## Run 4 (after fixes)
+Test Case '-[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer]' passed (57.020 seconds).
