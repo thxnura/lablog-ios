@@ -96,4 +96,18 @@ final class LiveActivityAndGuideTests: XCTestCase {
         let old = try JSONDecoder().decode(Step.self, from: Data(json.replacingOccurrences(of: #","guide":{"steps":["a","b"],"safety":null,"expected":"c"}"#, with: "").utf8))
         XCTAssertNil(old.guide, "catalogs without guides still decode")
     }
+    // MARK: Lecturer role (UI only; the API enforces it)
+
+    func testRoleClaimIsReadFromTheJWT() {
+        func jwt(_ payload: String) -> String {
+            let body = Data(payload.utf8).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+            return "eyJhbGciOiJIUzI1NiJ9.\(body).signature"
+        }
+        XCTAssertEqual(AuthService.claim("role", inAppMetadataOf: jwt(#"{"app_metadata":{"role":"lecturer"}}"#)), "lecturer")
+        XCTAssertNil(AuthService.claim("role", inAppMetadataOf: jwt(#"{"user_metadata":{"role":"lecturer"}}"#)),
+                     "user_metadata is writable by the user, so it must not count")
+        XCTAssertNil(AuthService.claim("role", inAppMetadataOf: "not-a-jwt"))
+    }
 }

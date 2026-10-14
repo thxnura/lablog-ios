@@ -9,6 +9,8 @@ protocol LabLogAPI {
     func sync(_ payload: SyncRequestDTO) async throws -> SyncResponseDTO
     func signUpload(recordId: UUID, attachmentId: UUID) async throws -> SignUploadDTO
     func uploadPhoto(_ data: Data, to signed: SignUploadDTO) async throws
+    /// Lecturer only (the API returns 403 for students).
+    func submissions(experimentId: UUID) async throws -> [SubmissionDTO]
 }
 
 enum APIError: LocalizedError, Equatable {
@@ -37,7 +39,14 @@ struct APIClient: LabLogAPI {
 
     private func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
         guard let token = await tokenProvider() else { throw APIError.notSignedIn }
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
+        // Split off a query string: appendingPathComponent would percent-encode "?".
+        let parts = path.split(separator: "?", maxSplits: 1).map(String.init)
+        var url = baseURL.appendingPathComponent(parts[0])
+        if parts.count == 2, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.percentEncodedQuery = parts[1]
+            url = components.url ?? url
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = method
         req.timeoutInterval = 20
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -53,9 +62,23 @@ struct APIClient: LabLogAPI {
         return data
     }
 
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let iso = ISO8601DateFormatter()
+
+    /// Accepts ISO 8601 with or without fractional seconds (the API sends
+    /// `toISOString()` dates, e.g. 2026-10-14T15:43:52.123Z).
     private var decoder: JSONDecoder {
         let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
+        d.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            if let date = Self.isoFractional.date(from: text) ?? Self.iso.date(from: text) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                                                    debugDescription: "Not an ISO 8601 date: \(text)"))
+        }
         return d
     }
 
@@ -93,6 +116,13 @@ struct APIClient: LabLogAPI {
             "contentType": "image/jpeg",
         ])
         return try decoder.decode(SignUploadDTO.self, from: try await request("attachments/sign", method: "POST", body: body))
+    }
+
+    // MARK: Lecturer
+
+    func submissions(experimentId: UUID) async throws -> [SubmissionDTO] {
+        try decoder.decode([SubmissionDTO].self,
+                           from: try await request("records?experimentId=\(experimentId.uuidString.lowercased())"))
     }
 
     /// PUTs the JPEG straight to Supabase Storage via the signed URL — the

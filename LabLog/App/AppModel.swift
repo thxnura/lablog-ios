@@ -15,6 +15,8 @@ final class AppModel {
     let sync: SyncEngine
     let location: LocationService
     let container: ModelContainer
+    /// nil when the build has no backend configured.
+    let api: LabLogAPI?
     let timers = StepTimerCoordinator()
 
     /// Set by a Live Activity / notification tap; RootView navigates to the
@@ -41,6 +43,7 @@ final class AppModel {
         }
 
         self.config = config
+        self.api = api
         self.container = container
         self.store = store
         self.auth = auth

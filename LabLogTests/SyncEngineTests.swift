@@ -164,6 +164,8 @@ private final class FakeAPI: LabLogAPI {
         return SignUploadDTO(signedUrl: "https://storage.test/\(path)", token: "t", path: path, storagePath: path)
     }
 
+    func submissions(experimentId: UUID) async throws -> [SubmissionDTO] { [] }
+
     func uploadPhoto(_ data: Data, to signed: SignUploadDTO) async throws {
         events.append("upload:\(signed.path.split(separator: "/").last!.dropLast(4))")
     }

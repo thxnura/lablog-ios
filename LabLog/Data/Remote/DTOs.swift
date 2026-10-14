@@ -63,5 +63,41 @@ struct ExperimentDetailDTO: Codable {
     }
 }
 
+/// `GET /api/records?experimentId=` — one submitted record, as a lecturer sees it.
+struct SubmissionDTO: Decodable, Identifiable, Hashable {
+    struct Completion: Decodable, Hashable {
+        let id: UUID
+        let stepId: UUID
+        let completedAt: Date
+        let note: String?
+    }
+
+    struct Note: Decodable, Hashable {
+        let id: UUID
+        let text: String
+    }
+
+    struct Photo: Decodable, Hashable, Identifiable {
+        let id: UUID
+        let stepId: UUID?
+        let storagePath: String
+        /// Signed, time-limited (1 h) download URL for the private bucket.
+        let url: URL?
+    }
+
+    let id: UUID
+    let studentId: UUID
+    let studentEmail: String?
+    let experimentId: UUID
+    let status: String
+    let latitude: Double?
+    let longitude: Double?
+    let createdAt: Date
+    let submittedAt: Date?
+    let stepCompletions: [Completion]
+    let observations: [Note]
+    let attachments: [Photo]
+}
+
 /// Error body produced by the backend's errorHandler: `{ "error": "…" }`.
 struct APIErrorBody: Decodable { let error: String }

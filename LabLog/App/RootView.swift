@@ -7,7 +7,7 @@ struct RootView: View {
     @State private var tab: Tab = .labs
     @State private var labsPath = NavigationPath()
 
-    enum Tab: Hashable { case labs, records, sync }
+    enum Tab: Hashable { case labs, records, review, sync }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -22,6 +22,15 @@ struct RootView: View {
             }
             .tabItem { Label("Records", systemImage: "list.bullet.clipboard.fill") }
             .tag(Tab.records)
+
+            // Lecturers get a review tab (the API enforces the role as well).
+            if app.auth.role == .lecturer {
+                NavigationStack {
+                    ReviewView()
+                }
+                .tabItem { Label("Review", systemImage: "checkmark.rectangle.stack.fill") }
+                .tag(Tab.review)
+            }
 
             NavigationStack {
                 SyncStatusView()

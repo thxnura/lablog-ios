@@ -29,6 +29,27 @@ final class AuthService {
     private(set) var session: Session?
     var isSignedIn: Bool { session != nil }
 
+    enum Role: String { case student, lecturer }
+
+    /// From the JWT's `app_metadata.role`. Only used to choose what the UI
+    /// shows — the API checks the role itself and returns 403 otherwise.
+    var role: Role {
+        guard let token = session?.accessToken,
+              Self.claim("role", inAppMetadataOf: token) == "lecturer" else { return .student }
+        return .lecturer
+    }
+
+    static func claim(_ key: String, inAppMetadataOf jwt: String) -> String? {
+        let parts = jwt.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var base64 = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+        guard let data = Data(base64Encoded: base64),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let metadata = payload["app_metadata"] as? [String: Any] else { return nil }
+        return metadata[key] as? String
+    }
+
     @ObservationIgnored private let config: AppConfig
     @ObservationIgnored private let keychain = KeychainStore(service: "com.thxnura.LabLog", account: "supabase-session")
     @ObservationIgnored private var refreshTask: Task<Session?, Never>?
