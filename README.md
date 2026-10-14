@@ -11,7 +11,7 @@ LabLog/
   App/            LabLogApp, AppModel (composition root), AppConfig, RootView (tabs)
   DesignSystem/   Theme tokens (colour, spacing, radius, motion) + shared components
   Features/       LabList (home), ExperimentList, ExperimentDetail, RecordCapture,
-                  Records, SyncStatus, Auth
+                  Records, SyncStatus, Auth, Review (lecturer)
   Components/
     ExperimentChecklist/   ★ custom component (timeline, precedence-constrained)
     SyncStateBadge         status / sync / connectivity chips
@@ -30,8 +30,9 @@ Shared/           compiled into app + widget: StepTimerAttributes, CompleteTimed
                   Discipline palette, deep links
 LabLogWidgets/    widget extension: Dynamic Island + Lock Screen Live Activity
 Config/           LabLog.xcconfig, Secrets.example.xcconfig, Info.plist, LabLogWidgets-Info.plist
-LabLogTests/      constraint engine, SwiftDataStore, SyncEngine, Live Activity/guide tests (36)
-LabLogUITests/    end-to-end flows + screenshots, incl. Dynamic Island (2)
+LabLogTests/      constraint engine, SwiftDataStore, SyncEngine, Live Activity/guide tests (37)
+LabLogUITests/    end-to-end flows + screenshots: titration, timer/Dynamic Island,
+                  real sign-in + sync, lecturer review (4)
 docs/             decision-records.md, failure-log.md, screenshots/
 ```
 

@@ -1,0 +1,14 @@
+# xcodebuild test — testTitrationFlow after a simulator reboot (2026-10-14)
+
+## Symptom in the previous full run: receipt read 'Location: Not available' (see 010-location-not-available.png)
+
+## Run A — dropped navigation tap on a cold-booted simulator
+LabLogUITests/LabLogFlowUITests.swift:111: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+
+## Run B — submit succeeded, but the 1.6 s success state was missed while waiting for a prompt
+LabLogUITests/LabLogFlowUITests.swift:93: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : failed - submit-success not found.
+  StaticText, {{131.3, 72.7}, {139.3, 22.7}}, label: 'Submitted record'
+  StaticText, {{32.0, 950.0}, {338.0, 30.0}}, label: 'Location, 6.9271, 79.8612'
+
+## Run C (location pinned, taps retried, success + prompts polled together)
+Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' passed (99.197 seconds).

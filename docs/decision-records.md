@@ -101,6 +101,11 @@
 **Decision.** The role comes from the JWT user's `app_metadata.role`, which only the service role can set, so students can't promote themselves. `requireRole('lecturer')` guards `/records`, and the `experimentId` query is validated as a UUID (422 otherwise). Before any upsert, `assertOwnership` refuses a record id owned by another student (403) and child ids (completions, observations, attachments) that belong to another record (409). The lecturer response is camelCase, with the student's email and 1-hour signed URLs for photos in the private bucket.
 **Consequences.** Idempotent retries still work for the owner, and hijacking is blocked. E2E tests cover both, plus the 403 for students. It costs one extra lookup per record per sync.
 
+## ADR-020 — In-app lecturer review, live from the API
+**Context.** Lecturers could only review submissions through the API, which is hard to demo and incomplete as a product. The brief rewards completeness.
+**Decision.** Signed-in lecturers get a **Review** tab: experiments → submissions (student, time, steps done, photos, located) → a detail screen (stats, the step timeline with completion times and photos, the observation, a map). The app reads the role from the JWT's `app_metadata` only to decide what to *show*; the API still enforces `requireRole('lecturer')`. Submissions are fetched live and not cached offline, because lecturers review at a desk and the data belongs to other users. Photos use the API's 1-hour signed URLs. The API normalises timestamps to ISO 8601 UTC so the app's decoder is predictable.
+**Consequences.** Both roles are demonstrable end to end in the app (covered by a UI test). The review screens need a connection, and signed URLs expire after an hour (pull to refresh).
+
 <!-- ADR-00N — <title>
 **Context.** …
 **Decision.** …

@@ -1,0 +1,16 @@
+# xcodebuild test — testLecturerReview (2026-10-14)
+
+## Run A — tab tap ignored right after launch (cause not found)
+t =     6.31s Tap "Sync" Button
+t =     7.18s     Synthesize event
+LabLogUITests/LabLogFlowUITests.swift:107: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - No sign-in button. Screen:
+  (screen dump: NavigationBar identifier 'Labs'; TabBar 'Labs', Selected)
+
+## Run B — Step 5 tapped while completed rows were collapsing; Submit stayed disabled
+t =    54.89s Tap "step-node-5" Button
+t =    55.44s Tap "submit-record" Any
+t =    55.82s Waiting 5.0s for "confirm-submit" Any to exist
+LabLogUITests/LabLogFlowUITests.swift:343: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : XCTAssertTrue failed
+
+## Run C (verified tab switches + confirmed step completion)
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' passed (163.788 seconds).

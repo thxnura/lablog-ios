@@ -77,6 +77,33 @@ On the Mac this showed up as a repeating "LabLog quit unexpectedly" dialog.
 **Fix:** Use an explicit `HStack { Image; Text }` with `.lineLimit(1).fixedSize()` for badges and the Network value.
 **AI result:** partially. The first fix was wrong (icon only); the second worked.
 
+### [2026-10-14] Flaky lecturer UI test: tab tap ignored, step tapped mid-layout
+**Type:** logic (UI test)
+**What I was doing:** Adding `testLecturerReview`: the student submits, it syncs, and the lecturer reviews it in the new Review tab.
+**Error / output:**
+    Run A: failed - No sign-in button  (dump: still on the Labs tab although "Sync" was tapped at 6.31 s)
+    Run B: LabLogFlowUITests.swift:343: XCTAssertTrue failed  (no confirm sheet: Step 5 never completed, so Submit stayed disabled)
+**Screenshot:** ![flaky](screenshots/011-flaky-lecturer-ui-test.png) (raw: [`011-flaky-lecturer-ui-test.log`](screenshots/011-flaky-lecturer-ui-test.log))
+**Cause:** A: the tab tap was sent but ignored right after launch. I didn't find the root cause; the same first step passed in the previous run. B: completed steps collapse and the list re-lays out, so the next circle tap landed while rows were still moving.
+**Fix:** `selectTab(_:)` checks the navigation title and retries once. `completeStep(_:)` taps a circle, then waits until it reads "Step N done" (retrying once). Run C passed.
+**AI prompt used:**
+    > ok do next ones
+**AI result:** partially. The lecturer view worked first time; the test needed two hardening rounds.
+
+### [2026-10-14] GPS stamp "Not available" in test runs; flaky submit UI test
+**Type:** logic (UI test / test environment)
+**What I was doing:** Reviewing the report figures. The receipt from the last full UI run read "Location: Not available", although on 12 Oct the same flow produced coordinates and a map.
+**Error / output:**
+    Receipt: Location  Not available
+    Run A: LabLogFlowUITests.swift:111: XCTAssertTrue failed            (no "start-record" after the tap)
+    Run B: LabLogFlowUITests.swift:93: failed - submit-success not found  (yet the screen showed 'Submitted record' and 'Location, 6.9271, 79.8612')
+**Screenshot:** ![not available](screenshots/010-location-not-available.png) ![runs](screenshots/010-gps-reset-and-flaky-submit.png) (raw: [`010-gps-reset-and-flaky-submit.log`](screenshots/010-gps-reset-and-flaky-submit.log))
+**Cause:** Not an app bug. The simulator had been restarted since 12 Oct, so it no longer had a simulated location. The app did what it was designed to do: after a 10 s timeout, submit without a location. Once a location was set, two test bugs showed. A navigation tap on the cold-booted simulator was dropped. And because the GPS fix was now instant, the 1.6 s success screen came and went while the test was still waiting for a permission prompt.
+**Fix:** The UI tests pin the location themselves (`XCUIDevice.shared.location`), retry a navigation tap once (`tap(_:expecting:)`), and watch for the success screen and any prompt in one polling loop. On failure, they print the app's and SpringBoard's screen trees. GPS verified: the receipt shows "6.9271, 79.8612" with the map.
+**AI prompt used:**
+    > ok do next ones
+**AI result:** worked. Found while checking the report figures.
+
 ### [2026-10-14] Backend couldn't start: port 3000 already in use
 **Type:** runtime crash (backend)
 **What I was doing:** Starting the Express API (`npm run dev`) to connect the app to a local Supabase stack for the first real end-to-end sync.
