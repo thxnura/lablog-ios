@@ -77,6 +77,41 @@ On the Mac this showed up as a repeating "LabLog quit unexpectedly" dialog.
 **Fix:** Use an explicit `HStack { Image; Text }` with `.lineLimit(1).fixedSize()` for badges and the Network value.
 **AI result:** partially. The first fix was wrong (icon only); the second worked.
 
+### [2026-10-12] Submit confirmation rendered as a popover pointing at a step card (UX)
+**Type:** logic (UI/UX)
+**What I was doing:** Submitting a record on my iPhone (iOS 27.2, dark mode).
+**Error / output:** The `.confirmationDialog("Submit this lab record?")` appeared as a floating popover near the top, with its arrow pointing at the Step 1 card. It looked broken, and it didn't show what was being submitted.
+**Screenshot:** _TODO: save my iPhone screenshot as `screenshots/007-submit-popover.png`._ After: ![review sheet](screenshots/ui/ui-10b-review-submit.png) ![success](screenshots/ui/ui-10c-submitted-success.png)
+**Cause:** On recent iOS, a confirmation dialog attached to a large container is presented as a popover anchored to that view, not as an action sheet from the button.
+**Fix:** Replaced it with `SubmitReviewSheet`: a summary of steps, photos, observation and location; a warning if there is no observation; one primary "Submit lab record" button and a "Keep editing" option; then an animated "Submitted" state that closes itself. (ADR-017)
+**AI prompt used:**
+    > this submit dialog look ugly, fix it, also make dynamic island more good with details and make proffesional
+**AI result:** worked. Verified in UI-test screenshots.
+
+### [2026-10-12] Flaky timer UI test (tap during push; island press deep-linked)
+**Type:** logic (UI test)
+**What I was doing:** Re-running `testPendulumTimer` to recapture screenshots.
+**Error / output:** Run A: `Failed to tap "start-record" Any: No matches found`. Run B: `LabLogFlowUITests.swift:207: XCTAssertTrue failed` (waiting for `timer-pill` after returning to the app).
+**Screenshot:** ![flaky](screenshots/006-flaky-pendulum-ui-test.png) (raw: [`006-flaky-pendulum-ui-test.log`](screenshots/006-flaky-pendulum-ui-test.log))
+**Cause:** A: the test tapped the experiment and then Start before the navigation push had finished. B: the long-press that expands the Dynamic Island also registered as a tap. That opened the app through the Live Activity's deep link, which opened the step guide over the timer pill. That part is correct app behaviour; the test didn't expect it.
+**Fix:** Added `waitForExistence` before each tap in the flow, and the test now closes the guide if the island press opened it.
+**AI result:** worked after both fixes.
+
+### [2026-10-12] Container accessibilityIdentifier overrode every child's identifier
+**Type:** logic (UI test / accessibility)
+**What I was doing:** Running the UI tests after adding the step guide sheet and the Live Activity timer.
+**Error / output:**
+    LabLogFlowUITests.swift:63: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    LabLogFlowUITests.swift:176: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : XCTAssertTrue failed
+    (debug description) Button …, identifier: 'step-guide', label: 'Close guide'
+**Screenshot:** ![ids](screenshots/005-accessibility-id-overrides-children.png) (raw: [`005-accessibility-id-overrides-children.log`](screenshots/005-accessibility-id-overrides-children.log))
+**Cause:** The guide sheet *did* open. But I had put `.accessibilityIdentifier("step-guide")` on the sheet's root view, and SwiftUI pushes a container's identifier down onto its children, replacing their own (`close-guide`, `guide-mark-done`, `timer-dial`). The tests waited for ids that no longer existed.
+**Second instance (same run, pendulum test):** the record header card had `.accessibilityElement(children: .combine)` applied *after* the floating timer pill was overlaid on it. That merged the pill into the header, so the whole header (`label: '2, of 4, Simple Pendulum…'`) carried the `timer-pill` identifier, and the test tapped the header's centre instead of the pill. This was also wrong for VoiceOver users, because the pill wasn't a separate button.
+**Fix:** Removed the container-level identifiers (guide sheet, evidence section, submission receipt). Moved `.accessibilityElement(children: .combine)` before the pill overlay so the pill stays its own button. Re-ran: both UI tests pass. Lesson: only put identifiers on leaf elements, and combine accessibility children before overlaying controls.
+**AI prompt used:**
+    > add more interactibe animations like when timer goes show them in dynamic island and show interactive timer, and when we click step add step guide as well
+**AI result:** partially. The feature built cleanly first time, but this mistake failed both UI tests until it was fixed.
+
 ### [2026-10-12] UI test tapped the floating Submit bar instead of Step 4 (+ xcodebuild hang)
 **Type:** logic (UI test)
 **What I was doing:** Running the UI tests after the visual redesign (ADR-013).

@@ -1,0 +1,10 @@
+# xcodebuild test — testPendulumTimer re-runs, 2026-10-12 23:2x
+
+## Run A (tapped before the push finished)
+<unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : Failed to tap "start-record" Any: No matches found for first query match sequence: `Descendants
+
+## Run B (island long-press deep-linked into the step guide)
+LabLogUITests/LabLogFlowUITests.swift:207: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : XCTAssertTrue failed
+t =    33.89s Press Application 'com.apple.springboard'[0.50, 0.03] for 1.2 seconds
+t =    46.72s     Activate com.thxnura.LabLog
+t =    47.15s Waiting 10.0s for "timer-pill" Any to exist

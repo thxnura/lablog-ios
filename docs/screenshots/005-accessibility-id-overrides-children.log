@@ -1,0 +1,15 @@
+# xcodebuild test — LabLogUITests after adding the step guide (2026-10-12 23:09)
+
+LabLogUITests/LabLogFlowUITests.swift:176: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : XCTAssertTrue failed
+LabLogUITests/LabLogFlowUITests.swift:63: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+
+# XCUITest debug description of the presented guide sheet (excerpt):
+  Button, 0x103f6bf80, {{16.3, 763.2}, {369.5, 64.6}}, identifier: 'step-guide', label: 'Finish Step 1 first', Disabled
+  Button, 0x103f6c2e0, {{355.8, 218.7}, {30.0, 30.0}}, identifier: 'step-guide', label: 'Close guide'
+  ScrollView, 0x103f692c0, {{0.3, 202.7}, {401.4, 671.0}}, identifier: 'step-guide'
+
+# Expected identifiers 'close-guide', 'guide-mark-done', 'timer-dial' — all replaced by the sheet's own 'step-guide'.
+
+# Second instance — header combined with the overlaid pill (pendulum test, 23:11):
+  Button, 0x1062460f0, {{16.0, 124.0}, {370.0, 131.3}}, identifier: 'timer-pill', label: '2, of 4, Simple Pendulum, Next: Step 3 · Time 20 oscillation
+  Button, 0x106246e70, {{119.7, 215.3}, {163.0, 40.0}}, identifier: 'timer-pill', label: 'Step 3 timer'

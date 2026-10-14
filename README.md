@@ -24,10 +24,14 @@ LabLog/
     Remote/       APIClient (LabLogAPI), DTOs, AuthService (Supabase GoTrue), Keychain
     Sync/         SyncEngine (outbox) + Reachability (NWPathMonitor)
   Hardware/       CameraPicker, LocationService
+  LiveActivity/   StepTimerCoordinator (starts/ends the timer activity, "ready" notification)
   Assets.xcassets AppIcon (original artwork), AccentColor
-Config/           LabLog.xcconfig, Secrets.example.xcconfig, Info.plist
-LabLogTests/      StepConstraintEngine, SwiftDataStore, SyncEngine tests (28)
-LabLogUITests/    end-to-end flow + screenshots (2)
+Shared/           compiled into app + widget: StepTimerAttributes, CompleteTimedStepIntent,
+                  Discipline palette, deep links
+LabLogWidgets/    widget extension: Dynamic Island + Lock Screen Live Activity
+Config/           LabLog.xcconfig, Secrets.example.xcconfig, Info.plist, LabLogWidgets-Info.plist
+LabLogTests/      constraint engine, SwiftDataStore, SyncEngine, Live Activity/guide tests (36)
+LabLogUITests/    end-to-end flows + screenshots, incl. Dynamic Island (2)
 docs/             decision-records.md, failure-log.md, screenshots/
 ```
 

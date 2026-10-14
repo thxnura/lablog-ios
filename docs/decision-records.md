@@ -76,6 +76,21 @@
 **Decision.** Map rows to camelCase in `catalog.service.ts`; experiment detail returns `{…experiment, steps}` sorted by order. Call `createSignedUploadUrl(path, { upsert: true })`.
 **Consequences.** One JSON convention end to end, and photo retries are safe, matching ADR-004. The mapping layer must be updated whenever a column is added.
 
+## ADR-015 — Timed steps run as a Live Activity (Dynamic Island + Lock Screen)
+**Context.** Timer guards (e.g. "Allow to dissolve (5 min)") make students wait. Mid-wait they put the phone down or switch apps, and they had no way to know when the step unlocked.
+**Decision.** A widget extension (`LabLogWidgets`) draws a `StepTimerAttributes` Live Activity: a countdown and progress ring in the Dynamic Island (compact, minimal and expanded) and on the Lock Screen. The countdown uses `Text(timerInterval:)` / `ProgressView(timerInterval:)`, so the system keeps it live with no app updates; `staleDate` = end time flips it to "Ready". `StepTimerCoordinator` starts and ends the activity from the same precedence + duration rules as `StepConstraintEngine`. A "Mark done" button (`CompleteTimedStepIntent`, a `LiveActivityIntent`) runs in the app process through `LiveActivityBridge` and still has to pass the constraint engine. A local notification fires when the wait ends; notification permission is requested at the first timer, not at launch. A tap on the island or the notification deep-links (`lablog://record/<id>?step=<id>`) to the step guide.
+**Consequences.** Students can leave the app during a wait and still see the countdown, and nothing can be completed early from the island. It adds a second target and shared code (`Shared/`), and the extension needs its own App ID under the free Personal Team.
+
+## ADR-016 — Step guide; circle = quick action, card = guide
+**Context.** A one-line instruction isn't enough to teach a procedure. Also, tapping a whole row to complete a step made accidental completions easy.
+**Decision.** Each step can carry a `StepGuide` (how-to sub-steps, a safety note, the expected result). It is stored in new optional SwiftData fields and new `steps` columns (migration `002_step_guides.sql`), and the bundled catalog version is bumped so existing installs pick it up. In `ExperimentChecklist`, tapping the status circle is the quick action (complete / photo / explain lock); tapping the card fires the new `onStepSelected` event, which opens `StepGuideSheet`. The guide shows what blocks the step (tap a blocker to jump to its guide), an interactive timer dial (tap to switch between remaining time and ready-at), and the one action that moves the step forward, all through the constraint engine. A haptic fires when a timer guard runs out.
+**Consequences.** Better teaching and fewer accidental taps, and the circle-vs-row pattern is familiar from Reminders. Guide content lives in two places (`CatalogSeed` and `seed.sql`); both are generated from one script so they stay identical, and a unit test checks every bundled step has a guide.
+
+## ADR-017 — Review-and-submit sheet; richer Live Activity
+**Context.** Submitting is the one irreversible action in the app, but the system confirmation dialog showed no detail and rendered as a misplaced popover. The first Live Activity only showed a countdown, with no sense of overall progress or what comes next.
+**Decision.** Submission goes through `SubmitReviewSheet`. It shows what will be handed in (steps, photos, observation, location stamp), warns if there is no observation, has one primary action, and ends in an animated success state with a haptic. The Live Activity gains overall progress (step X of N plus progress dots), the lab name, start and ready times, an "Up next" line, a Guide link, and a distinct ready state (green "Wait over" with a prominent Mark done).
+**Consequences.** Students confirm with full information (Apple's Agency principle: confirm only irreversible actions, with context). The island is useful at a glance. `StepTimerAttributes` carries more fields, and the coordinator updates the activity when other steps finish during a wait.
+
 <!-- ADR-00N — <title>
 **Context.** …
 **Decision.** …
