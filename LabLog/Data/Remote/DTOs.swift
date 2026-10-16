@@ -30,7 +30,11 @@ struct SyncRecordDTO: Codable, Equatable {
     let submittedAt: Date?
     let stepCompletions: [SyncStepCompletionDTO]
     let observations: [SyncObservationDTO]
+    /// The record's full set of uploaded photos: the server drops any it has
+    /// that aren't listed (a retaken or removed photo).
     let attachments: [SyncAttachmentDTO]
+    /// Tombstone: the draft was discarded on the device. Omitted otherwise.
+    var deleted: Bool? = nil
 }
 
 struct SyncRequestDTO: Codable { let records: [SyncRecordDTO] }

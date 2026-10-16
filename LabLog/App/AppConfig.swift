@@ -26,4 +26,29 @@ struct AppConfig {
             supabaseAnonKey: value("SupabaseAnonKey"),
         )
     }
+
+    /// The same backend reached at another address (the Mac's IP on a new
+    /// Wi-Fi or hotspot). Scheme, ports and paths stay as built.
+    func replacingHost(_ host: String) -> AppConfig {
+        func swap(_ url: URL?) -> URL? {
+            guard let url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+            components.host = host
+            return components.url ?? url
+        }
+        return AppConfig(apiBaseURL: swap(apiBaseURL), supabaseURL: swap(supabaseURL), supabaseAnonKey: supabaseAnonKey)
+    }
+
+    /// An IPv4 address or a host name such as `thanuras-macbook.local`.
+    static func isValidHost(_ text: String) -> Bool {
+        let host = text.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, host.count <= 253 else { return false }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        if parts.allSatisfy({ $0.allSatisfy(\.isNumber) }) {
+            return parts.count == 4 && parts.allSatisfy { Int($0).map { (0...255).contains($0) } ?? false }
+        }
+        return parts.allSatisfy { label in
+            !label.isEmpty && label.count <= 63 && label.first != "-" && label.last != "-"
+                && label.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
+        }
+    }
 }

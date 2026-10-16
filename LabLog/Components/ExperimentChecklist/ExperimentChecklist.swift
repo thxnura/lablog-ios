@@ -89,6 +89,7 @@ struct ExperimentChecklist: View {
                         isLast: index == ordered.count - 1,
                         connectorFilled: completions.contains { $0.stepId == step.id },
                         thumbnail: photoThumbnails[step.id],
+                        note: completions.first { $0.stepId == step.id }?.note,
                         onNodeTap: { handleTap(step) },
                         onCardTap: onStepSelected.map { select in { select(step) } },
                     )

@@ -1,0 +1,18 @@
+# xcodebuild test — testEditingADraftAndServerAddress, first run (2026-10-16 10:25)
+# excerpts: xcodebuild output, then the app's UI hierarchy captured at the failure
+
+    t =    53.47s     Find the "guide-retake-photo" Any
+    t =    53.51s     Check for interrupting elements affecting "guide-retake-photo" Button
+    t =    53.64s     Synthesize event
+    t =    53.97s     Wait for com.thxnura.LabLog to idle
+    t =    55.83s Waiting 5.0s for "step-note" Any to exist
+    t =    61.17s Collecting debug information to assist test failure triage
+    t =    61.17s     Requesting snapshot of accessibility hierarchy for app with pid 25738
+    /Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLogUITests/LabLogFlowUITests.swift:295: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed
+    t =    61.51s Tear Down
+/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-ios/LabLogUITests/LabLogFlowUITests.swift:295: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (62.336 seconds).
+
+# UI hierarchy at the failure: the guide had moved on to Step 5
+  Button, 0x105f5f060, {{16.0, 740.0}, {30.0, 56.0}}, identifier: 'step-node-5', label: 'Mark step 5 done'
+  Button, 0x105f64950, {{16.3, 763.2}, {369.5, 64.6}}, identifier: 'guide-mark-done', label: 'Mark step done', Selected

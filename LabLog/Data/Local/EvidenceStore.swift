@@ -44,6 +44,11 @@ enum EvidenceStore {
         return data
     }
 
+    /// Deletes a photo file (a retake, a removed photo or a discarded draft).
+    static func delete(_ fileName: String) {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(fileName))
+    }
+
     static func image(for fileName: String) -> UIImage? {
         UIImage(contentsOfFile: directory.appendingPathComponent(fileName).path)
     }

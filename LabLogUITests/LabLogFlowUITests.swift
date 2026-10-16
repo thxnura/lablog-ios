@@ -17,7 +17,8 @@ final class LabLogFlowUITests: XCTestCase {
         // stamp come back "Not available". Pin it so submit is deterministic.
         XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 6.9271, longitude: 79.8612))
         app = XCUIApplication()
-        app.launchArguments = ["-UITestInMemoryStore", "-UITestStubCamera"]
+        // Reach the Mac's backend through loopback, whatever its Wi-Fi address is today (failure 015).
+        app.launchArguments = ["-UITestInMemoryStore", "-UITestStubCamera", "-LabLogServerHost", "127.0.0.1"]
         app.launch()
     }
 
@@ -134,9 +135,8 @@ final class LabLogFlowUITests: XCTestCase {
             return XCTFail("No sign-in button. Screen:\n\(app.debugDescription)")
         }
         guard signInButton.isEnabled else { throw XCTSkip("No backend configured in this build") }
-        signInButton.tap()
+        tap("sign-in", expecting: "email") // retries a dropped tap once (016)
         let emailField = element("email")
-        XCTAssertTrue(emailField.waitForExistence(timeout: 5))
         sleep(1) // sheet settles; the email field focuses itself
         emailField.typeText(email)
         let passwordField = element("password")
@@ -214,15 +214,16 @@ final class LabLogFlowUITests: XCTestCase {
         snap("08-guide-done-next")
         closeGuide()
 
-        tapNode(2)
-        tapNode(3)
+        // Confirm each completion: a tap during the re-layout can be dropped (011, 016).
+        completeStep(2)
+        completeStep(3)
         sleep(1)
         snap("09-photo-guard")
 
         // Photo guard: circle opens the camera (stubbed) and completes the step.
-        tapNode(4)
+        completeStep(4)
         XCTAssertTrue(app.staticTexts["Evidence"].waitForExistence(timeout: 5))
-        tapNode(5)
+        completeStep(5)
 
         let observation = element("observation")
         scrollIntoView(observation)
@@ -270,6 +271,84 @@ final class LabLogFlowUITests: XCTestCase {
     }
 
     /// Timer guard: live row + pill, the interactive dial, the Dynamic Island.
+    /// Retake a photo, note a step, discard the draft, then point the app at
+    /// another server address and test it (Sync → Server).
+    func testEditingADraftAndServerAddress() {
+        tap("lab-CHEM201", expecting: "experiment-Acid–Base Titration")
+        tap("experiment-Acid–Base Titration", expecting: "start-record")
+        tap("start-record", expecting: "step-1")
+        completeStep(1)
+        completeStep(2)
+        completeStep(3)
+        completeStep(4) // the circle opens the (stubbed) camera; the photo completes the step
+        XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 5))
+
+        // Retake from the guide; a completed step can't lose its photo.
+        openGuide(4)
+        let retake = element("guide-retake-photo")
+        XCTAssertTrue(retake.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("guide-remove-photo").exists, "a completed step keeps its evidence")
+        XCTAssertTrue(retake.isHittable, "Retake sits on the photo, clear of the Next button (failure 012)")
+        snap("28-guide-evidence")
+        retake.tap()
+        sleep(1)
+        XCTAssertTrue(element("guide-next").exists, "still on Step 4's guide after the retake")
+
+        let note = element("step-note")
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        if !note.isHittable { app.swipeUp(velocity: .slow) }
+        note.tap()
+        note.typeText("Titre 24.60 mL; faint pink lasted 30 s.")
+        sleep(1)
+        snap("29-step-note")
+        closeGuide()
+        XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 5), "the retake replaced the photo")
+        snap("30-checklist-with-note")
+
+        // The note was saved with the step.
+        openGuide(4)
+        XCTAssertEqual(element("step-note").value as? String, "Titre 24.60 mL; faint pink lasted 30 s.")
+        closeGuide()
+
+        // Discard the draft from the record's menu.
+        element("record-menu").tap()
+        let discardItem = app.buttons["Discard draft"]
+        XCTAssertTrue(discardItem.waitForExistence(timeout: 5))
+        discardItem.tap()
+        // iOS 26 alerts expose each button twice to XCUITest (failure 014): take the first.
+        let confirm = app.alerts.firstMatch.buttons.matching(identifier: "Discard").firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        snap("31-discard-confirm")
+        confirm.tap()
+        XCTAssertTrue(element("start-record").waitForExistence(timeout: 5), "back on the experiment")
+        selectTab("Records")
+        XCTAssertTrue(app.staticTexts["No lab records"].waitForExistence(timeout: 5))
+
+        // Sync → Server: test an address that answers, then one that doesn't.
+        selectTab("Sync")
+        let row = element("server-row")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        guard row.isEnabled else { return } // build without a backend
+        snap("32a-sync-server-row")
+        row.tap()
+        let field = element("server-host")
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        func replaceHost(_ text: String) {
+            field.tap()
+            let old = (field.value as? String) ?? ""
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count + 2) + text)
+        }
+        replaceHost("127.0.0.1")
+        element("server-test").tap()
+        XCTAssertTrue(element("server-ok").waitForExistence(timeout: 12), "local backend answered")
+        snap("32-server-settings")
+        replaceHost("10.255.255.1")
+        element("server-test").tap()
+        XCTAssertTrue(element("server-failed").waitForExistence(timeout: 15))
+        snap("33-server-unreachable")
+        app.navigationBars["Server"].buttons["Cancel"].tap()
+    }
+
     func testPendulumTimer() {
         XCTAssertTrue(element("lab-PHYS101").waitForExistence(timeout: 10))
         tap("lab-PHYS101", expecting: "experiment-Simple Pendulum")

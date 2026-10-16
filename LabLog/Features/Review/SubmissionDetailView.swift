@@ -113,6 +113,12 @@ struct SubmissionDetailView: View {
                             Text(completion.map { "Done at \($0.completedAt.formatted(date: .omitted, time: .shortened))" } ?? "Not completed")
                                 .font(.caption)
                                 .foregroundStyle(completion == nil ? Theme.danger : .secondary)
+                            if let note = completion?.note, !note.isEmpty {
+                                Label(note, systemImage: "text.bubble")
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                    .padding(.top, 2)
+                            }
                         }
                         .padding(.bottom, index < steps.count - 1 ? Theme.Space.l : 0)
                         Spacer(minLength: 0)

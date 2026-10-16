@@ -8,7 +8,11 @@ import UserNotifications
 @MainActor
 @Observable
 final class AppModel {
-    let config: AppConfig
+    /// Where the backend is; the Sync tab can change the host at runtime.
+    let endpoint: ServerEndpoint
+    var config: AppConfig { endpoint.config }
+    /// The host currently in use (observable, for the Sync tab).
+    private(set) var serverHost: String?
     let store: LocalStore
     let auth: AuthService
     let reachability: Reachability
@@ -35,14 +39,21 @@ final class AppModel {
             fatalError("Could not open the local database: \(error)")
         }
         let store = SwiftDataStore(container: container)
-        let auth = AuthService(config: config)
+        // A host chosen in the Sync tab outlives relaunches. UI tests start
+        // clean but can pass `-LabLogServerHost 127.0.0.1` (the simulator always
+        // reaches the Mac there), so they don't depend on its Wi-Fi address (failure 015).
+        let launchHost = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[Self.serverHostKey] as? String
+        let savedHost = launchHost ?? (inMemory ? nil : UserDefaults.standard.string(forKey: Self.serverHostKey))
+        let endpoint = ServerEndpoint(built: config, host: config.isBackendConfigured ? savedHost : nil)
+        let auth = AuthService(endpoint: endpoint)
         let reachability = Reachability()
 
-        let api: LabLogAPI? = config.apiBaseURL.map { baseURL in
-            APIClient(baseURL: baseURL, tokenProvider: { await auth.validAccessToken() })
+        let api: LabLogAPI? = config.apiBaseURL.map { _ in
+            APIClient(endpoint: endpoint, tokenProvider: { await auth.validAccessToken() })
         }
 
-        self.config = config
+        self.endpoint = endpoint
+        self.serverHost = endpoint.config.apiBaseURL?.host()
         self.api = api
         self.container = container
         self.store = store
@@ -122,6 +133,32 @@ final class AppModel {
 
     private func activeTimerRecordIds() -> [UUID] {
         StepTimerCoordinator.activeRecordIds()
+    }
+
+    static let serverHostKey = "LabLogServerHost"
+
+    /// Point the app at the backend on another host (nil → the build's own).
+    /// Same backend, same session; only the address changes.
+    func setServerHost(_ host: String?) {
+        let trimmed = host?.trimmingCharacters(in: .whitespaces)
+        let custom = (trimmed?.isEmpty ?? true) || trimmed == endpoint.defaultConfig.apiBaseURL?.host() ? nil : trimmed
+        endpoint.setHost(custom)
+        if let custom {
+            UserDefaults.standard.set(custom, forKey: Self.serverHostKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.serverHostKey)
+        }
+        serverHost = endpoint.config.apiBaseURL?.host()
+        Task { await refreshAndSync() }
+    }
+
+    /// Throw away a draft: its timer stops and, if the server may already
+    /// have it, a tombstone syncs the delete.
+    func discardDraft(recordId: UUID) {
+        guard store.record(id: recordId)?.status == .draft else { return }
+        timers.endAll(recordId: recordId)
+        store.discardDraft(id: recordId, sendTombstone: config.isBackendConfigured)
+        didChangeLocally()
     }
 
     /// Pull the latest catalog, then push the outbox.

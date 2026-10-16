@@ -1,0 +1,18 @@
+# xcodebuild test — testEditingADraftAndServerAddress, second run (2026-10-16 10:36), after the 012 fix
+# retake + note now pass; tapping the discard confirmation fails (excerpt)
+
+    t =    72.71s Tap "Discard draft" Button
+    t =    72.71s     Wait for com.thxnura.LabLog to idle
+    t =    72.71s     Find the "Discard draft" Button
+    t =    72.76s     Check for interrupting elements affecting "discard-draft" Button
+    t =    72.80s     Synthesize event
+    t =    73.10s     Wait for com.thxnura.LabLog to idle
+    t =    73.92s Waiting 5.0s for "Discard" Button to exist
+    t =    75.04s Find the Target Application 'com.thxnura.LabLog'
+    t =    75.21s Added attachment named '31-discard-confirm'
+    t =    75.21s Tap "Discard" Button
+    t =    75.21s     Wait for com.thxnura.LabLog to idle
+    t =    75.21s     Find the "Discard" Button
+    t =    75.27s Requesting snapshot of accessibility hierarchy for app with pid 33639
+    <unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : Failed to tap "Discard" Button: Find single matching element. Multiple matching elements found for <XCUIElementQuery: 0x600002127390>.
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (76.185 seconds).

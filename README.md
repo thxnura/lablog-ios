@@ -10,8 +10,9 @@ and submit location-stamped lab records that sync to the backend when back onlin
 LabLog/
   App/            LabLogApp, AppModel (composition root), AppConfig, RootView (tabs)
   DesignSystem/   Theme tokens (colour, spacing, radius, motion) + shared components
-  Features/       LabList (home), ExperimentList, ExperimentDetail, RecordCapture,
-                  Records, SyncStatus, Auth, Review (lecturer)
+  Features/       LabList (home), ExperimentList, ExperimentDetail, RecordCapture
+                  (checklist, step guide with photo retake + notes, discard draft),
+                  Records, SyncStatus (+ server address), Auth, Review (lecturer)
   Components/
     ExperimentChecklist/   ★ custom component (timeline, precedence-constrained)
     SyncStateBadge         status / sync / connectivity chips
@@ -21,7 +22,8 @@ LabLog/
   Data/
     Local/        LocalStore protocol, SwiftDataStore (+ @Model types), CatalogSeed,
                   EvidenceStore (photos on disk)
-    Remote/       APIClient (LabLogAPI), DTOs, AuthService (Supabase GoTrue), Keychain
+    Remote/       APIClient (LabLogAPI), DTOs, AuthService (Supabase GoTrue), Keychain,
+                  ServerEndpoint (server address, changeable at runtime)
     Sync/         SyncEngine (outbox) + Reachability (NWPathMonitor)
   Hardware/       CameraPicker, LocationService
   LiveActivity/   StepTimerCoordinator (starts/ends the timer activity, "ready" notification)
@@ -30,9 +32,10 @@ Shared/           compiled into app + widget: StepTimerAttributes, CompleteTimed
                   Discipline palette, deep links
 LabLogWidgets/    widget extension: Dynamic Island + Lock Screen Live Activity
 Config/           LabLog.xcconfig, Secrets.example.xcconfig, Info.plist, LabLogWidgets-Info.plist
-LabLogTests/      constraint engine, SwiftDataStore, SyncEngine, Live Activity/guide tests (37)
+LabLogTests/      constraint engine, SwiftDataStore (incl. tombstones, photo retake, notes),
+                  SyncEngine, server endpoint, Live Activity/guide tests (47)
 LabLogUITests/    end-to-end flows + screenshots: titration, timer/Dynamic Island,
-                  real sign-in + sync, lecturer review (4)
+                  real sign-in + sync, lecturer review, draft editing + server address (5)
 docs/             decision-records.md, failure-log.md, screenshots/
 ```
 
@@ -60,6 +63,8 @@ Xcode before a demo.
 Without `Config/Secrets.xcconfig` the app runs in on-device mode with the bundled
 catalog. To sync, copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig`
 and set the backend URL (your Mac's LAN IP + `/api`), the Supabase URL and the anon key.
+If the Mac's address changes later (another Wi-Fi, a phone hotspot), change it in the app
+under **Sync → Server** and tap Test connection. There's no need to rebuild (ADR-021).
 
 UI-test screenshots: run the `LabLogUITests` with `-resultBundlePath`, then
 `xcrun xcresulttool export attachments --path <bundle> --output-path <dir>`.

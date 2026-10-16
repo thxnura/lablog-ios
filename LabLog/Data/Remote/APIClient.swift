@@ -31,13 +31,29 @@ enum APIError: LocalizedError, Equatable {
 }
 
 /// Thin REST client over the Express backend (`<base>/api/...`). Attaches the
-/// Supabase JWT from `tokenProvider` to every request.
+/// Supabase JWT from `tokenProvider` to every request. The base URL is read
+/// from `endpoint` per request, so changing the server takes effect at once.
 struct APIClient: LabLogAPI {
-    let baseURL: URL
+    let endpoint: ServerEndpoint
     var tokenProvider: () async -> String?
     var session: URLSession = .shared
 
+    private var baseURL: URL? { endpoint.config.apiBaseURL }
+
+    /// `GET <base>/health` (no auth): is the API reachable at this address?
+    /// Returns the round-trip time.
+    static func ping(_ baseURL: URL, timeout: TimeInterval = 4) async throws -> Duration {
+        var req = URLRequest(url: baseURL.appendingPathComponent("health"))
+        req.timeoutInterval = timeout
+        let started = ContinuousClock.now
+        let (_, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard status == 200 else { throw APIError.badStatus(status, nil) }
+        return ContinuousClock.now - started
+    }
+
     private func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+        guard let baseURL else { throw APIError.invalidURL }
         guard let token = await tokenProvider() else { throw APIError.notSignedIn }
         // Split off a query string: appendingPathComponent would percent-encode "?".
         let parts = path.split(separator: "?", maxSplits: 1).map(String.init)

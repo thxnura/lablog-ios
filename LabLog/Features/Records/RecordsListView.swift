@@ -5,6 +5,7 @@ struct RecordsListView: View {
     @Environment(AppModel.self) private var app
     @State private var rows: [Row] = []
     @State private var filter: Filter = .all
+    @State private var discarding: Row?
 
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All", drafts = "In progress", submitted = "Submitted"
@@ -43,6 +44,14 @@ struct RecordsListView: View {
                         RecordCard(row: row)
                     }
                     .buttonStyle(.pressableCard)
+                    .contextMenu {
+                        if row.record.status == .draft {
+                            Button("Discard draft", systemImage: "trash", role: .destructive) {
+                                discarding = row
+                            }
+                        }
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
 
                 if visible.isEmpty {
@@ -65,7 +74,16 @@ struct RecordsListView: View {
         }
         .toolbar { ConnectivityToolbarItem() }
         .refreshable { await app.sync.sync() }
-        .task(id: app.store.version) { load() }
+        .task(id: app.store.version) { withAnimation(Theme.spring) { load() } }
+        .alert("Discard this draft?", isPresented: Binding(get: { discarding != nil }, set: { if !$0 { discarding = nil } })) {
+            Button("Discard", role: .destructive) {
+                if let row = discarding { app.discardDraft(recordId: row.record.id) }
+                discarding = nil
+            }
+            Button("Cancel", role: .cancel) { discarding = nil }
+        } message: {
+            Text("\(discarding?.title ?? "This draft") and its steps, photos and notes will be deleted. This can't be undone.")
+        }
     }
 
     private func load() {

@@ -74,6 +74,92 @@ final class SwiftDataStoreTests: XCTestCase {
         XCTAssertEqual(store.pendingAttachments(recordId: record.id).map(\.id), [waiting])
     }
 
+    // MARK: Discarding drafts (tombstones)
+
+    func testDiscardingANeverSentDraftRemovesItAtOnce() {
+        let record = store.createRecord(experimentId: experimentId)
+        store.setObservation(recordId: record.id, text: "spilled")
+        store.discardDraft(id: record.id, sendTombstone: true)
+        XCTAssertNil(store.record(id: record.id))
+        XCTAssertTrue(store.pendingRecords().isEmpty, "nothing to tell the server")
+        XCTAssertNil(store.observation(recordId: record.id))
+    }
+
+    func testDiscardingASentDraftLeavesATombstoneUntilSynced() {
+        let record = store.createRecord(experimentId: experimentId)
+        let step = store.steps(experimentId: experimentId)[0]
+        store.addCompletion(StepCompletion(id: UUID(), recordId: record.id, stepId: step.id, completedAt: Date()))
+        store.applySyncResult(id: record.id, synced: true, sentRevision: store.record(id: record.id)!.revision, error: nil)
+
+        store.discardDraft(id: record.id, sendTombstone: true)
+
+        XCTAssertNil(store.record(id: record.id), "hidden from the app")
+        XCTAssertTrue(store.records().isEmpty)
+        let tombstone = try! XCTUnwrap(store.pendingRecords().first)
+        let dto = store.makeDTO(tombstone)
+        XCTAssertEqual(dto.deleted, true)
+        XCTAssertTrue(dto.stepCompletions.isEmpty)
+
+        store.applySyncResult(id: record.id, synced: true, sentRevision: tombstone.revision, error: nil)
+        XCTAssertTrue(store.pendingRecords().isEmpty, "a synced tombstone is purged")
+    }
+
+    func testOnlyDraftsCanBeDiscarded() {
+        let record = store.createRecord(experimentId: experimentId)
+        store.submitRecord(id: record.id, latitude: nil, longitude: nil)
+        store.discardDraft(id: record.id, sendTombstone: true)
+        XCTAssertEqual(store.record(id: record.id)?.status, .submitted)
+    }
+
+    // MARK: Photos and notes
+
+    func testRemovingAPhotoRequeuesTheRecordAndLeavesTheDTO() {
+        let record = store.createRecord(experimentId: experimentId)
+        let photo = UUID()
+        store.addAttachment(Attachment(id: photo, recordId: record.id, stepId: nil, localPath: "x.jpg",
+                                       storagePath: nil, syncState: .pendingCreate))
+        store.markAttachmentUploaded(photo, storagePath: "records/x/x.jpg")
+        store.applySyncResult(id: record.id, synced: true, sentRevision: store.record(id: record.id)!.revision, error: nil)
+
+        store.removeAttachment(id: photo)
+
+        XCTAssertEqual(store.record(id: record.id)?.syncState, .pendingUpdate)
+        XCTAssertTrue(store.makeDTO(store.record(id: record.id)!).attachments.isEmpty,
+                      "the server drops photos missing from the set")
+    }
+
+    func testStepNoteSyncsAndABlankNoteClearsIt() {
+        let record = store.createRecord(experimentId: experimentId)
+        let step = store.steps(experimentId: experimentId)[0]
+        let completion = StepCompletion(id: UUID(), recordId: record.id, stepId: step.id, completedAt: Date())
+        store.addCompletion(completion)
+        store.applySyncResult(id: record.id, synced: true, sentRevision: store.record(id: record.id)!.revision, error: nil)
+
+        store.setCompletionNote(id: completion.id, note: "  m = 2.31 g  ")
+        XCTAssertEqual(store.makeDTO(store.record(id: record.id)!).stepCompletions.first?.note, "m = 2.31 g")
+        XCTAssertEqual(store.record(id: record.id)?.syncState, .pendingUpdate)
+
+        store.setCompletionNote(id: completion.id, note: "   ")
+        XCTAssertNil(store.completions(recordId: record.id).first?.note)
+    }
+
+    func testSubmittedRecordsCantBeEdited() {
+        let record = store.createRecord(experimentId: experimentId)
+        let step = store.steps(experimentId: experimentId)[0]
+        let completion = StepCompletion(id: UUID(), recordId: record.id, stepId: step.id, completedAt: Date())
+        store.addCompletion(completion)
+        let photo = UUID()
+        store.addAttachment(Attachment(id: photo, recordId: record.id, stepId: step.id, localPath: "y.jpg",
+                                       storagePath: nil, syncState: .pendingCreate))
+        store.submitRecord(id: record.id, latitude: nil, longitude: nil)
+
+        store.setCompletionNote(id: completion.id, note: "too late")
+        store.removeAttachment(id: photo)
+
+        XCTAssertNil(store.completions(recordId: record.id).first?.note)
+        XCTAssertEqual(store.attachments(recordId: record.id).map(\.id), [photo])
+    }
+
     func testSubmitStampsLocationOnce() {
         let record = store.createRecord(experimentId: experimentId)
         store.submitRecord(id: record.id, latitude: 6.9, longitude: 79.8)

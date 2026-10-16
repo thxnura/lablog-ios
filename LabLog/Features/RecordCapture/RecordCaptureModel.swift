@@ -21,6 +21,10 @@ final class RecordCaptureModel {
     @ObservationIgnored private let app: AppModel
     @ObservationIgnored private let engine = StepConstraintEngine()
     @ObservationIgnored private var observationSaveTask: Task<Void, Never>?
+    @ObservationIgnored private var noteSaveTasks: [UUID: Task<Void, Never>] = [:]
+
+    /// Same limit as the backend's zod schema for a completion note.
+    static let noteLimit = 2000
 
     init(recordId: UUID, app: AppModel) {
         self.recordId = recordId
@@ -78,8 +82,11 @@ final class RecordCaptureModel {
     }
 
     /// Saves the photo as evidence for `step`, then completes the step if that
-    /// was the last thing it was waiting for.
+    /// was the last thing it was waiting for. A retake replaces the step's
+    /// photo — the old one is only deleted once the new one is safely saved.
     func attachPhoto(_ image: UIImage, to step: Step) {
+        guard isEditable else { return }
+        let previous = attachments.filter { $0.stepId == step.id }
         let attachmentId = UUID()
         do {
             let fileName = try EvidenceStore.save(image, id: attachmentId)
@@ -89,6 +96,7 @@ final class RecordCaptureModel {
             errorMessage = error.localizedDescription
             return
         }
+        for old in previous { app.store.removeAttachment(id: old.id) }
         load()
 
         let context = StepConstraintEngine.Context(
@@ -103,6 +111,58 @@ final class RecordCaptureModel {
             app.store.addCompletion(completion)
         }
         app.didChangeLocally()
+    }
+
+    func photo(for step: Step) -> Attachment? {
+        attachments.last { $0.stepId == step.id }
+    }
+
+    /// A photo can be removed until its step is done; after that it is the
+    /// evidence the completion rests on (it can still be retaken).
+    func canRemovePhoto(of step: Step) -> Bool {
+        isEditable && photo(for: step) != nil && !completions.contains { $0.stepId == step.id }
+    }
+
+    func removePhoto(of step: Step) {
+        guard canRemovePhoto(of: step) else { return }
+        for attachment in attachments where attachment.stepId == step.id {
+            app.store.removeAttachment(id: attachment.id)
+        }
+        load()
+        app.didChangeLocally()
+    }
+
+    func note(for step: Step) -> String {
+        completions.first { $0.stepId == step.id }?.note ?? ""
+    }
+
+    /// Debounced like the observation; the note lives on the step's completion.
+    func noteChanged(_ text: String, for step: Step) {
+        guard isEditable, completions.contains(where: { $0.stepId == step.id }) else { return }
+        noteSaveTasks[step.id]?.cancel()
+        noteSaveTasks[step.id] = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard let self, !Task.isCancelled else { return }
+            self.saveNoteNow(text, for: step)
+        }
+    }
+
+    func saveNoteNow(_ text: String, for step: Step) {
+        noteSaveTasks[step.id]?.cancel()
+        noteSaveTasks[step.id] = nil
+        guard isEditable, let completion = completions.first(where: { $0.stepId == step.id }) else { return }
+        app.store.setCompletionNote(id: completion.id, note: String(text.prefix(Self.noteLimit)))
+        app.didChangeLocally()
+    }
+
+    /// Throws the draft away (see AppModel.discardDraft).
+    func discard() {
+        guard isEditable else { return }
+        observationSaveTask?.cancel()
+        observationSaveTask = nil
+        noteSaveTasks.values.forEach { $0.cancel() }
+        noteSaveTasks = [:]
+        app.discardDraft(recordId: recordId)
     }
 
     /// Debounced so typing doesn't write on every keystroke.

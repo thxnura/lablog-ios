@@ -35,6 +35,102 @@
 
 ## Entries
 
+### [2026-10-16] Retake button hidden under the step guide's floating Next button (failure 012)
+**Type:** logic (UI) — caught by the new UI test
+**What I was doing:** Adding photo retake/remove, step notes, discard draft and a server-address setting. The new UI test `testEditingADraftAndServerAddress` completes Step 4 with a photo, then retakes it from the step guide.
+**Error / output:**
+    t =    53.64s     Synthesize event            (tap on "guide-retake-photo")
+    t =    55.83s Waiting 5.0s for "step-note" Any to exist
+    LabLogFlowUITests.swift:295: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed
+    # UI hierarchy at the failure: identifier: 'guide-mark-done', label: 'Mark step done'   ← Step 5's guide
+**Screenshot:** ![012](screenshots/012-retake-tap-hit-next-button.png) (log: `012-retake-tap-hit-next-button.log`)
+**Cause:** The Retake/Remove buttons sat below a 190 pt photo, past the fold of the sheet and directly under the floating "Next: Step 5" button. XCUITest tapped the element's coordinates, the tap went to Next, and the guide moved to Step 5, which has no note field. This is the same class of bug as failure 004. It was also a real UX problem: a student wouldn't see Retake without scrolling.
+**Fix:** Retake and Remove now float on the photo itself (material capsule and circle), so they are always on screen with the photo. The test asserts Retake is hittable and that the guide stays on Step 4 after the retake.
+**AI prompt used:** (part of the "ok do next" build, see below)
+**AI result:** partially. The first version of the evidence card had the hidden buttons; fixed after the UI test caught it.
+
+### [2026-10-16] Full suite: titration and sign-in UI tests flaked (failure 016)
+**Type:** UI test timing (no app change needed)
+**What I was doing:** The second full run after the 015 fix. 47 unit tests and 3 UI tests passed, including the new one and the lecturer test.
+**Error / output:**
+    t = 52.84s Tap "step-node-5" Button … t = 61.68s Tap "submit-record" Any
+    LabLogFlowUITests.swift:237: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    # hierarchy: 'submit-record' … Disabled   ← a step tapped mid-layout never completed
+    t = 26.24s Tap "sign-in" Button → Waiting 5.0s for "email"
+    LabLogFlowUITests.swift:140: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : XCTAssertTrue failed
+    # hierarchy: still the Sync screen, no sign-in sheet   ← the tap was dropped
+**Screenshot:** ![016](screenshots/016-flaky-titration-and-sign-in.png) (log: `016-flaky-titration-and-sign-in.log`)
+**Cause:** The titration test was the last one still tapping step circles without confirming them. With the evidence section now above the observation, the re-layout after the photo made a tap land mid-animation (same class as 011). The sign-in tap was dropped once. The lecturer test passed through the same sign-in helper in this very run.
+**Fix:** The titration test uses `completeStep` (tap, then wait for "Step N done") for every step. The sign-in helper uses `tap(_:expecting:)`, which retries a dropped tap once.
+
+### [2026-10-16] The Mac's IP changed mid-session; both sign-in UI tests failed (failure 015)
+**Type:** network — the viva risk ADR-021 is about, happening for real
+**What I was doing:** Running the full suite after adding the new features.
+**Error / output:**
+    LabLogFlowUITests.swift:146: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : XCTAssertTrue failed - sign-in against Supabase Auth
+    LabLogFlowUITests.swift:146: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : XCTAssertTrue failed - sign-in against Supabase Auth
+    $ ipconfig getifaddr en0                                               → 192.168.1.88
+    $ curl … http://192.168.1.8:54321/auth/v1/health                        → 000 (unreachable)
+    $ curl … http://192.168.1.88:54321/auth/v1/health                       → 200
+**Screenshot:** ![015](screenshots/015-mac-ip-changed.png) (log: `015-mac-ip-changed.log`; the `ipconfig` and `curl` lines were run live in that Terminal window)
+**Cause:** The router gave the Mac a new address (192.168.1.8 → 192.168.1.88) during the session. The app is built with the old address, so sign-in couldn't reach Supabase. No code was wrong. Before ADR-021 this would have needed a rebuild, and at the viva it would have broken the demo.
+**Fix:** UI tests now launch with `-LabLogServerHost 127.0.0.1` (the simulator always reaches the Mac there), so they no longer depend on the Wi-Fi address. On a phone, Sync → Server takes the new address without a rebuild. The build's default in `Secrets.xcconfig` is now 192.168.1.88. The same full run also showed the draft test tapping Step 4 mid-layout, so it now waits for "Step 4 done", as `completeStep` does (cf. 011).
+
+### [2026-10-16] Discard confirmation: "Multiple matching elements found" (failure 014)
+**Type:** UI test
+**What I was doing:** The second run of `testEditingADraftAndServerAddress`, after the 012 fix. Retake and the step note passed; the test then confirmed "Discard this draft?".
+**Error / output:**
+    t =    75.21s Tap "Discard" Button
+    <unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : Failed to tap "Discard" Button: Find single matching element. Multiple matching elements found for <XCUIElementQuery: …>.
+**Screenshot:** ![014](screenshots/014-alert-button-matched-twice.png) (log: `014-alert-button-matched-twice.log`)
+**Cause:** The alert itself rendered correctly (one Discard button, see the test's `31-discard-confirm` screenshot). iOS 26 exposes an alert's button to XCUITest twice, so `app.alerts.buttons["Discard"]` matched two elements and refused to tap either.
+**Fix:** The test takes the first match inside the first alert: `app.alerts.firstMatch.buttons.matching(identifier: "Discard").firstMatch`.
+
+### [2026-10-16] TermShot captured keys I was typing (failure 013, tooling)
+**Type:** tooling (TermShot, outside the app)
+**What happened:** While I was typing elsewhere, TermShot brought its Terminal window to the front. My keys ("ow" + Return) went into its live shell, and the capture showed `zsh: command not found: ow` plus a Terminal mark. A live shell taking stray keystrokes could also run a command. The first fix froze the prompt with a script. That broke the title (it showed the script's path instead of `-zsh`, and the folder icon disappeared), and macOS also refused to give Terminal the focus while I was busy in another app.
+**Screenshot:** none kept. Both faulty captures were overwritten by the retakes before I saved copies; this entry describes them instead.
+**Fix:** In capture mode the window ends in a real interactive `-zsh` that sources my own startup files and then switches to an empty keymap, so every key does nothing. The prompt, cursor, title and folder icon stay genuine. TermShot waits until the keyboard and mouse have been idle for 1.5 s before taking the focus. If a key is pressed during the capture anyway, it throws the shot away and retakes it.
+**AI result:** worked after two attempts. I asked for real screenshots; Claude Code noticed the typed text in the capture and fixed TermShot before re-taking 012.
+
+### [2026-10-16] AI: next builds — server address, discard draft, photo retake, step notes
+**Type:** AI-prompt
+**AI prompt used:**
+    > so whats next we have to build
+    > ok do next
+**AI result:** partially. Claude Code proposed, then built:
+1. **Sync → Server:** change the backend address at runtime and test it. The API now rewrites storage URLs to the host the app called (ADR-021).
+2. **Discard draft:** syncs a tombstone to the server (ADR-022).
+3. **Photos and notes:** photo retake (plus remove until the step is done) and per-step notes. The sync payload now carries the full photo set (ADR-023).
+
+Tests now number 47 unit, 14 backend end-to-end and 5 UI. The new UI test failed once (failure 012) before the fix.
+
+### [2026-10-15] AI: Word version of the report
+**Type:** AI-prompt
+**AI prompt used:**
+    > make word document
+**AI result:** worked with two fixes. `LabLog-Report.docx` is generated from the same Markdown with python-docx: headings, tables, code blocks, the 14 images and a page-number footer. The first build had two bugs, both fixed and checked: a whitespace trim removed the spaces around "·" between two hyperlinks, and an image that wasn't wrapped in a paragraph was skipped.
+
+### [2026-10-15] AI: error screenshots that look like the real Terminal (TermShot)
+**Type:** AI-prompt
+**What I was doing:** The error images for 001–011 were drawn from the captured logs by a script. They didn't look like macOS Terminal (custom title, `$` prompts, different colours), so I asked for a tool that shows a log in a real Terminal window to screenshot.
+**AI prompt used:**
+    > termiansl erros all looks like styles neh, for this lets do this, make small mac app, not inside this repo. make it inside documemnt/thanura and when we fiving logs, inte rendered same to mac terminal and we can capture ss from it
+    > look its huge different   (with a screenshot of my real Terminal next to the old image)
+**AI result:** worked. Claude Code built TermShot, a small SwiftUI Mac app kept outside the repo (`~/Documents/thanura/TermShot`). It turns a log into a zsh script and opens it in a real Terminal.app window. The window shows the prompt and command, then the exact captured output, and ends at a live `-zsh` prompt. Optionally it saves the window as a PNG with `screencapture -l`. Two problems came up on the way:
+1. Opening the script as a `.command` file titled the window after the file. Fixed by opening a normal window with AppleScript `do script`.
+2. Pressing Return there left Terminal "mark" lines in the margin. Fixed by resetting the terminal (`ESC c`) before replaying.
+
+From now on, error screenshots are replays of the exact captured output in Terminal. The command and output are real, but the window is a replay, not the original run.
+
+Also on 15 Oct I re-took the screenshots for 001, 002, 004, 005, 006, 008, 009, 010 and 011. Each new PNG shows a real Terminal window running `cat` (for 001, `head` and `tail`) on the `.log` saved on the day of the failure. The logs themselves are unchanged. They are excerpts, and their `#` lines are notes I added at the time. Problems that came up during the re-take:
+- Three captures caught Terminal in the background (grey buttons, hollow cursor). macOS doesn't always let another app take focus. TermShot now brings the window forward, checks the saved image for the red close button, and retakes it if the window wasn't active.
+- My next prompt: "now this is too mcuh perfect, adding shadow and all, screenshots are croped and sometimes at background, fix it", then "no still perfect, i mean not have background and random crops". The images had a large drop shadow, and each window was a different size cut tightly around its text. They are now the window alone, with no shadow, all 120 columns wide and at least 24 rows tall, like a normal Terminal window. That still looked too staged ("still its same neh too perfect"). So I sent a screenshot of my own Terminal on the desktop ("i said u to take ss like this"). The final style matches it: a 120-column window on my real desktop wallpaper, with a loose, uneven crop that sometimes cuts through the window's empty edge but never through text. TermShot captures only the wallpaper and the Terminal window, using ScreenCaptureKit, so other apps, widgets and desktop icons never appear.
+- With Preview full screen, the new Terminal windows opened on the desktop Space, and TermShot looked for them before macOS had switched there ("The Terminal window isn't on screen"). It now activates Terminal first, waits for the Space switch, and retries.
+- In windows taller than 24 rows, Terminal's prompt marks came back. Fixed by waiting for the resize to finish before resetting.
+- One capture picked up an old Terminal window left open by an earlier test. TermShot now finds its window by its tty, and `--cleanup` closes leftover windows.
+- The 008 log's `curl` line was shortened with "…" when it was saved. It is shown as-is, not as raw curl output.
+
 ### [2026-10-12] Domain struct `Observation` shadowed Apple's Observation module
 **Type:** build error
 **What I was doing:** First build of the new `LabLog.xcodeproj` (`xcodebuild test`, iPhone 17 Pro simulator, Xcode 27.0 / Swift 6.4).

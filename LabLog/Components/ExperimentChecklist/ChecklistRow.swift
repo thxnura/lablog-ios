@@ -19,6 +19,8 @@ struct ChecklistRow: View {
     /// Connector below this node is "filled" once this step is done.
     var connectorFilled = false
     var thumbnail: UIImage?
+    /// The student's note on this step, shown under a completed step.
+    var note: String?
     /// Tapping the status circle: complete / take photo / explain the lock.
     let onNodeTap: () -> Void
     /// Tapping the card: open the step guide (falls back to `onNodeTap`).
@@ -135,6 +137,14 @@ struct ChecklistRow: View {
                 }
                 statusLine
                     .padding(.top, 2)
+                if let note, !note.isEmpty {
+                    Label(note, systemImage: "text.bubble")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .accessibilityLabel("Note: \(note)")
+                }
             }
             Spacer(minLength: 0)
             if onCardTap != nil && thumbnail == nil {

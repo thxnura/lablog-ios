@@ -66,6 +66,9 @@ struct LabRecord: Identifiable, Codable, Hashable {
     var revision: Int = 1
     /// Last error reported for this record by a failed sync, if any.
     var lastSyncError: String?
+    /// Set when a draft is discarded but the server may still have it: the
+    /// record stays in the outbox as a tombstone until the delete is synced.
+    var deletedAt: Date? = nil
 }
 
 struct StepCompletion: Identifiable, Codable, Hashable {

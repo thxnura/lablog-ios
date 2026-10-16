@@ -99,17 +99,23 @@ final class SwiftDataStore: LocalStore {
         return entity.domain
     }
 
+    /// Discarded drafts (tombstones) are hidden everywhere except the outbox.
     func record(id: UUID) -> LabRecord? {
-        recordEntity(id)?.domain
+        guard let entity = recordEntity(id), entity.deletedAt == nil else { return nil }
+        return entity.domain
     }
 
     func records() -> [LabRecord] {
-        fetch(FetchDescriptor<RecordEntity>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])).map(\.domain)
+        let descriptor = FetchDescriptor<RecordEntity>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)],
+        )
+        return fetch(descriptor).map(\.domain)
     }
 
     func records(experimentId: UUID) -> [LabRecord] {
         let descriptor = FetchDescriptor<RecordEntity>(
-            predicate: #Predicate { $0.experimentId == experimentId },
+            predicate: #Predicate { $0.experimentId == experimentId && $0.deletedAt == nil },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)],
         )
         return fetch(descriptor).map(\.domain)
@@ -146,6 +152,16 @@ final class SwiftDataStore: LocalStore {
         save()
     }
 
+    func setCompletionNote(id: UUID, note: String?) {
+        guard let entity = completionEntity(id), isDraft(entity.recordId) else { return }
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        guard entity.note != value else { return }
+        entity.note = value
+        touch(entity.recordId)
+        save()
+    }
+
     func setObservation(recordId: UUID, text: String) {
         if let existing = observationEntity(recordId: recordId) {
             guard existing.text != text else { return }
@@ -161,6 +177,31 @@ final class SwiftDataStore: LocalStore {
     func addAttachment(_ attachment: Attachment) {
         context.insert(AttachmentEntity(attachment, createdAt: Date()))
         touch(attachment.recordId)
+        save()
+    }
+
+    func removeAttachment(id: UUID) {
+        guard let entity = attachmentEntity(id), isDraft(entity.recordId) else { return }
+        let recordId = entity.recordId
+        if let file = entity.localFileName { EvidenceStore.delete(file) }
+        context.delete(entity)
+        touch(recordId)
+        save()
+    }
+
+    func discardDraft(id: UUID, sendTombstone: Bool) {
+        guard let entity = recordEntity(id), entity.status == .draft, entity.deletedAt == nil else { return }
+        // Never sent → the server can't have it; nothing to tell it.
+        guard sendTombstone, entity.syncState != .pendingCreate else {
+            purge(entity)
+            save()
+            return
+        }
+        deleteChildren(of: id)
+        entity.deletedAt = Date()
+        entity.revision += 1
+        entity.syncState = .pendingUpdate
+        entity.lastSyncError = nil
         save()
     }
 
@@ -190,6 +231,11 @@ final class SwiftDataStore: LocalStore {
     }
 
     func makeDTO(_ record: LabRecord) -> SyncRecordDTO {
+        if record.deletedAt != nil {
+            return SyncRecordDTO(id: record.id, experimentId: record.experimentId, status: record.status.rawValue,
+                                 latitude: nil, longitude: nil, createdAt: record.createdAt, submittedAt: nil,
+                                 stepCompletions: [], observations: [], attachments: [], deleted: true)
+        }
         var observations: [SyncObservationDTO] = []
         if let note = observation(recordId: record.id),
            !note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -232,6 +278,12 @@ final class SwiftDataStore: LocalStore {
 
     func applySyncResult(id: UUID, synced: Bool, sentRevision: Int, error: String?) {
         guard let entity = recordEntity(id) else { return }
+        if synced, entity.deletedAt != nil {
+            // The server has deleted it too; the tombstone has done its job.
+            purge(entity)
+            save()
+            return
+        }
         if synced {
             // Edited while the request was in flight → keep it in the outbox.
             entity.syncState = entity.revision == sentRevision ? .synced : .pendingUpdate
@@ -252,6 +304,29 @@ final class SwiftDataStore: LocalStore {
         if entity.syncState == .synced {
             entity.syncState = .pendingUpdate
         }
+    }
+
+    private func isDraft(_ recordId: UUID) -> Bool {
+        recordEntity(recordId)?.status == .draft
+    }
+
+    /// Completions, observation and photos (with their files) of a record.
+    private func deleteChildren(of recordId: UUID) {
+        for c in fetch(FetchDescriptor<StepCompletionEntity>(predicate: #Predicate { $0.recordId == recordId })) {
+            context.delete(c)
+        }
+        for o in fetch(FetchDescriptor<ObservationEntity>(predicate: #Predicate { $0.recordId == recordId })) {
+            context.delete(o)
+        }
+        for a in fetch(FetchDescriptor<AttachmentEntity>(predicate: #Predicate { $0.recordId == recordId })) {
+            if let file = a.localFileName { EvidenceStore.delete(file) }
+            context.delete(a)
+        }
+    }
+
+    private func purge(_ entity: RecordEntity) {
+        deleteChildren(of: entity.id)
+        context.delete(entity)
     }
 
     private func save() {
@@ -286,6 +361,10 @@ final class SwiftDataStore: LocalStore {
 
     private func observationEntity(recordId: UUID) -> ObservationEntity? {
         fetch(FetchDescriptor<ObservationEntity>(predicate: #Predicate { $0.recordId == recordId })).first
+    }
+
+    private func completionEntity(_ id: UUID) -> StepCompletionEntity? {
+        fetch(FetchDescriptor<StepCompletionEntity>(predicate: #Predicate { $0.id == id })).first
     }
 
     private func attachmentEntity(_ id: UUID) -> AttachmentEntity? {

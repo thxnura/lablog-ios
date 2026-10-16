@@ -6,6 +6,7 @@ struct SyncStatusView: View {
     @Environment(AppModel.self) private var app
     @State private var failed: [(record: LabRecord, title: String)] = []
     @State private var showSignIn = false
+    @State private var showServer = false
 
     var body: some View {
         ScrollView {
@@ -24,10 +25,27 @@ struct SyncStatusView: View {
                             Text(app.reachability.isOnline ? "Online" : "Offline")
                         }
                         Divider()
-                        InfoRow(symbol: "server.rack", title: "Server",
-                                tint: app.config.isBackendConfigured ? .accentColor : .secondary) {
-                            Text(app.config.apiBaseURL?.host() ?? "Not configured")
+                        Button {
+                            showServer = true
+                        } label: {
+                            InfoRow(symbol: "server.rack", title: "Server",
+                                    tint: app.config.isBackendConfigured ? .accentColor : .secondary) {
+                                HStack(spacing: 6) {
+                                    Text(app.serverHost ?? "Not configured")
+                                        .monospacedDigit()
+                                    if app.config.isBackendConfigured {
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .disabled(!app.config.isBackendConfigured)
+                        .accessibilityIdentifier("server-row")
+                        .accessibilityHint("Change the server address")
                         Divider()
                         InfoRow(symbol: "books.vertical.fill", title: "Catalog", tint: .accentColor) {
                             Text(app.sync.catalogRefreshedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened))" } ?? "Bundled copy")
@@ -107,6 +125,9 @@ struct SyncStatusView: View {
         .refreshable { await app.refreshAndSync() }
         .sheet(isPresented: $showSignIn) {
             SignInView()
+        }
+        .sheet(isPresented: $showServer) {
+            ServerSettingsSheet()
         }
         .task(id: app.store.version) {
             failed = app.store.pendingRecords()

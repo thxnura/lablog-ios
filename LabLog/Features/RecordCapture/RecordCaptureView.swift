@@ -28,7 +28,9 @@ private struct RecordCaptureContent: View {
     @Bindable var model: RecordCaptureModel
 
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     @State private var cameraStep: Step?
+    @State private var confirmDiscard = false
     @State private var toast: String?
     @State private var toastTask: Task<Void, Never>?
     @State private var confirmSubmit = false
@@ -78,6 +80,19 @@ private struct RecordCaptureContent: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ConnectivityToolbarItem()
+            if model.isEditable {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Discard draft", systemImage: "trash", role: .destructive) {
+                            confirmDiscard = true
+                        }
+                        .accessibilityIdentifier("discard-draft")
+                    } label: {
+                        Label("More", systemImage: "ellipsis")
+                    }
+                    .accessibilityIdentifier("record-menu")
+                }
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") { observationFocused = false }
@@ -120,6 +135,16 @@ private struct RecordCaptureContent: View {
         }
         .sheet(isPresented: $confirmSubmit) {
             SubmitReviewSheet(model: model)
+        }
+        .alert("Discard this draft?", isPresented: $confirmDiscard) {
+            Button("Discard", role: .destructive) {
+                model.discard()
+                dismiss()
+            }
+            .accessibilityIdentifier("confirm-discard")
+            Button("Keep working", role: .cancel) {}
+        } message: {
+            Text("Its completed steps, photos, notes and observation will be deleted from this iPhone\(app.config.isBackendConfigured ? " and the server" : ""). This can't be undone.")
         }
         .sensoryFeedback(.success, trigger: model.isEditable) { wasEditable, isEditable in
             wasEditable && !isEditable
@@ -220,9 +245,15 @@ private struct RecordCaptureContent: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Space.m) {
                     ForEach(model.attachments) { attachment in
-                        EvidenceTile(attachment: attachment,
-                                     image: thumbnails[attachment.stepId ?? attachment.id],
-                                     stepOrder: model.steps.first { $0.id == attachment.stepId }?.order)
+                        // Tap a photo to open its step (retake or remove it there).
+                        Button {
+                            if let stepId = attachment.stepId { guide = GuideTarget(id: stepId) }
+                        } label: {
+                            EvidenceTile(attachment: attachment,
+                                         image: thumbnails[attachment.stepId ?? attachment.id],
+                                         stepOrder: model.steps.first { $0.id == attachment.stepId }?.order)
+                        }
+                        .buttonStyle(.pressableCard)
                     }
                 }
             }

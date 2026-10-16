@@ -50,12 +50,14 @@ final class AuthService {
         return metadata[key] as? String
     }
 
-    @ObservationIgnored private let config: AppConfig
+    @ObservationIgnored private let endpoint: ServerEndpoint
     @ObservationIgnored private let keychain = KeychainStore(service: "com.thxnura.LabLog", account: "supabase-session")
     @ObservationIgnored private var refreshTask: Task<Session?, Never>?
 
-    init(config: AppConfig) {
-        self.config = config
+    /// The session is kept across server changes: it's the same Supabase
+    /// project, just reached at another address.
+    init(endpoint: ServerEndpoint) {
+        self.endpoint = endpoint
         if let data = keychain.load() {
             session = try? JSONDecoder().decode(Session.self, from: data)
         }
@@ -113,6 +115,7 @@ final class AuthService {
     }
 
     private func tokenRequest(grantType: String, body: [String: String]) async throws -> TokenResponse {
+        let config = endpoint.config
         guard let supabaseURL = config.supabaseURL, let anonKey = config.supabaseAnonKey else {
             throw AuthError.notConfigured
         }

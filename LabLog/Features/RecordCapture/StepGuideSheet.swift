@@ -18,6 +18,9 @@ struct StepGuideSheet: View {
     @State private var cameraStep: Step?
     @State private var showClockTime = false
     @State private var completedCount = 0
+    @State private var noteText = ""
+    @State private var confirmRemovePhoto = false
+    @FocusState private var noteFocused: Bool
 
     private let engine = StepConstraintEngine()
 
@@ -78,6 +81,10 @@ struct StepGuideSheet: View {
                         header(step, state: state)
                         statusPanel(step, state: state)
                             .transition(.blurReplace)
+                        evidenceCard(step, state: state)
+                        if case .completed = state {
+                            noteCard(step)
+                        }
                         if let guide = step.guide {
                             guideSections(guide)
                         }
@@ -89,13 +96,20 @@ struct StepGuideSheet: View {
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .leading).combined(with: .opacity)))
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .background(Theme.canvas)
                 .safeAreaInset(edge: .bottom) {
-                    primaryAction(step, state: state)
-                        .padding(.horizontal, Theme.Space.l)
-                        .padding(.vertical, Theme.Space.m)
-                        .background(.bar)
+                    // While typing a note the keyboard owns the bottom edge; the
+                    // primary action steps aside so it never covers the field.
+                    if !noteFocused {
+                        primaryAction(step, state: state)
+                            .padding(.horizontal, Theme.Space.l)
+                            .padding(.vertical, Theme.Space.m)
+                            .background(.bar)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .animation(Theme.snappy, value: noteFocused)
                 .overlay(alignment: .topTrailing) { closeButton }
                 .animation(Theme.spring, value: state)
                 .animation(Theme.spring, value: stepId)
@@ -109,6 +123,19 @@ struct StepGuideSheet: View {
             .ignoresSafeArea()
         }
         .sensoryFeedback(.success, trigger: completedCount)
+        .onAppear { if let step { noteText = model.note(for: step) } }
+        .onChange(of: stepId) { old, _ in
+            // Moving to another step: save this one's note, load the next one's.
+            if let previous = model.steps.first(where: { $0.id == old }) { model.saveNoteNow(noteText, for: previous) }
+            if let step { noteText = model.note(for: step) }
+        }
+        .onDisappear { if let step { model.saveNoteNow(noteText, for: step) } }
+        .alert("Remove this photo?", isPresented: $confirmRemovePhoto) {
+            Button("Remove photo", role: .destructive) { if let step { model.removePhoto(of: step) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The step will need a new photo before it can be completed.")
+        }
         .presentationDetents([.fraction(0.82), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.canvas)
@@ -234,15 +261,6 @@ struct StepGuideSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if let attachment = model.attachments.first(where: { $0.stepId == step.id }),
-                   let name = attachment.localPath,
-                   let image = EvidenceStore.image(for: name)?.preparingThumbnail(of: CGSize(width: 160, height: 160)) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
             }
             .card()
         }
@@ -264,6 +282,108 @@ struct StepGuideSheet: View {
             }
         }
         .card()
+    }
+
+    // MARK: Evidence
+
+    /// The step's photo, with Retake and (until the step is done) Remove laid
+    /// over it, so the actions are always on screen with the photo (failure 012:
+    /// buttons under the photo sat beneath the sheet's floating Next button).
+    @ViewBuilder
+    private func evidenceCard(_ step: Step, state: GuideState) -> some View {
+        let attachment = model.photo(for: step)
+        let image = attachment?.localPath.flatMap { EvidenceStore.image(for: $0)?.preparingThumbnail(of: CGSize(width: 900, height: 900)) }
+        if let attachment {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let image {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        } else {
+                            Label(attachment.syncState == .synced ? "Photo uploaded" : "Photo saved", systemImage: "photo")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Theme.inset)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 170)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Evidence photo for step \(step.order)")
+                    .accessibilityIdentifier("guide-photo")
+
+                    if model.isEditable {
+                        HStack(spacing: Theme.Space.s) {
+                            if model.canRemovePhoto(of: step) {
+                                Button(role: .destructive) {
+                                    confirmRemovePhoto = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(width: 38, height: 38)
+                                        .background(.regularMaterial, in: Circle())
+                                }
+                                .accessibilityLabel("Remove photo")
+                                .accessibilityIdentifier("guide-remove-photo")
+                            }
+                            Button {
+                                requestPhoto(for: step)
+                            } label: {
+                                Label("Retake", systemImage: "camera.rotate")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 38)
+                                    .background(.regularMaterial, in: Capsule())
+                            }
+                            .accessibilityIdentifier("guide-retake-photo")
+                        }
+                        .foregroundStyle(.primary)
+                        .padding(10)
+                    }
+                }
+                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+                if model.isEditable, case .completed = state {
+                    Text("A completed step keeps its photo, but you can retake it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    // MARK: Note
+
+    @ViewBuilder
+    private func noteCard(_ step: Step) -> some View {
+        if model.isEditable {
+            VStack(alignment: .leading, spacing: Theme.Space.m) {
+                SectionHeader(title: "Your note")
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    TextField("Readings, what you saw, anything unexpected…", text: $noteText, axis: .vertical)
+                        .lineLimit(2...6)
+                        .focused($noteFocused)
+                        .onChange(of: noteText) {
+                            if noteText.count > RecordCaptureModel.noteLimit {
+                                noteText = String(noteText.prefix(RecordCaptureModel.noteLimit))
+                            }
+                            model.noteChanged(noteText, for: step)
+                        }
+                        .accessibilityIdentifier("step-note")
+                    Label("Saved with this step on the device", systemImage: "internaldrive")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .card()
+            }
+        } else if !model.note(for: step).isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Space.m) {
+                SectionHeader(title: "Note")
+                Text(model.note(for: step))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card()
+            }
+        }
     }
 
     // MARK: Guide content

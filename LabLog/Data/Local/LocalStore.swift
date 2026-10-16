@@ -29,9 +29,17 @@ protocol LocalStore: AnyObject {
     func attachments(recordId: UUID) -> [Attachment]
 
     func addCompletion(_ completion: StepCompletion)
+    /// A student's note on a completed step (nil or blank clears it).
+    func setCompletionNote(id: UUID, note: String?)
     func setObservation(recordId: UUID, text: String)
     func addAttachment(_ attachment: Attachment)
+    /// Deletes a photo and its file (retake or remove). Drafts only.
+    func removeAttachment(id: UUID)
     func submitRecord(id: UUID, latitude: Double?, longitude: Double?)
+    /// Discards a draft. If the server may have it (it was ever sent), the
+    /// record stays in the outbox as a tombstone until the delete syncs;
+    /// otherwise, or with no server, it is removed at once. Drafts only.
+    func discardDraft(id: UUID, sendTombstone: Bool)
 
     // MARK: Outbox
     /// Records that are not `synced` (pending or failed), oldest first.
@@ -46,5 +54,6 @@ protocol LocalStore: AnyObject {
     func markAttachmentLost(_ id: UUID)
     /// `sentRevision` is the record's revision when its DTO was built. If the
     /// record was edited since, it stays pending so the edit is synced too.
+    /// A synced tombstone is removed from the device.
     func applySyncResult(id: UUID, synced: Bool, sentRevision: Int, error: String?)
 }

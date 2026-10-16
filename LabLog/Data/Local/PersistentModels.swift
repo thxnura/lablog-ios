@@ -89,6 +89,8 @@ final class RecordEntity {
     var submittedAt: Date?
     var revision: Int
     var lastSyncError: String?
+    /// Tombstone for a discarded draft (see LabRecord.deletedAt).
+    var deletedAt: Date?
 
     init(id: UUID, experimentId: UUID, createdAt: Date) {
         self.id = id
@@ -112,7 +114,8 @@ final class RecordEntity {
     var domain: LabRecord {
         LabRecord(id: id, experimentId: experimentId, status: status, syncState: syncState,
                   latitude: latitude, longitude: longitude, createdAt: createdAt,
-                  submittedAt: submittedAt, revision: revision, lastSyncError: lastSyncError)
+                  submittedAt: submittedAt, revision: revision, lastSyncError: lastSyncError,
+                  deletedAt: deletedAt)
     }
 }
 

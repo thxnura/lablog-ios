@@ -81,6 +81,17 @@ final class StepTimerCoordinator {
         notifications.removePendingNotificationRequests(withIdentifiers: [notificationId(recordId, stepId)])
     }
 
+    /// The record was discarded: stop its timer and its "ready" notifications.
+    func endAll(recordId: UUID) {
+        for activity in Activity<StepTimerAttributes>.activities where activity.attributes.recordId == recordId {
+            end(activity, completed: false)
+        }
+        notifications.getPendingNotificationRequests { [notifications] requests in
+            let ids = requests.map(\.identifier).filter { $0.hasPrefix("step-ready-\(recordId.uuidString)-") }
+            notifications.removePendingNotificationRequests(withIdentifiers: ids)
+        }
+    }
+
     // MARK: Private
 
     private func start(_ timed: TimedStep, record: LabRecord, experiment: Experiment, lab: Lab?,

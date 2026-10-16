@@ -38,6 +38,21 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(api.syncedRecordIds, [record.id])
     }
 
+    func testSyncedTombstoneLeavesTheDevice() async {
+        let record = store.createRecord(experimentId: CatalogSeed.recrystallisation.id)
+        let engine = makeEngine()
+        await engine.sync()                                   // the server now has the draft
+        store.discardDraft(id: record.id, sendTombstone: true)
+        engine.refreshPendingCount()
+        XCTAssertEqual(engine.pendingCount, 1, "the delete waits in the outbox")
+
+        await engine.sync()
+
+        XCTAssertEqual(api.lastPayload?.records.first?.deleted, true)
+        XCTAssertEqual(engine.pendingCount, 0)
+        XCTAssertTrue(store.pendingRecords().isEmpty)
+    }
+
     func testPhotosUploadBeforeRecordIsPushed() async {
         let record = store.createRecord(experimentId: CatalogSeed.recrystallisation.id)
         let photoId = UUID()

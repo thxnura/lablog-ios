@@ -1,0 +1,18 @@
+# xcodebuild test — full suite, second run (2026-10-16 11:15): 47 unit + 3 UI passed, 2 UI failed (excerpt)
+
+    t =    22.04s Tap "step-node-4" Button
+    t =    41.55s Tap "step-node-2" Button
+    t =    43.40s Tap "step-node-3" Button
+    t =    46.32s Tap "step-node-4" Button
+    t =    52.84s Tap "step-node-5" Button
+    t =    61.68s Tap "submit-record" Any
+    t =    62.10s Waiting 5.0s for "confirm-submit" Any to exist
+    LabLogUITests/LabLogFlowUITests.swift:237: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' failed (68.137 seconds).
+    # hierarchy: Button 'submit-record', label: 'Submit lab record', Disabled   ← a step tapped mid-layout never completed
+
+    t =    26.24s Tap "sign-in" Button
+    t =    26.92s Waiting 5.0s for "email" Any to exist
+    LabLogUITests/LabLogFlowUITests.swift:140: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : XCTAssertTrue failed
+    Test Case '-[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer]' failed (32.552 seconds).
+    # hierarchy: still the Sync screen, 'sign-in' button visible, no sign-in sheet   ← the tap was dropped

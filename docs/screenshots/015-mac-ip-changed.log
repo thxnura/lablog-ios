@@ -1,0 +1,7 @@
+# xcodebuild test — full suite (2026-10-16 10:44): both tests that sign in failed (excerpt)
+# the app was built with SUPABASE_URL = http://192.168.1.8:54321
+
+LabLogUITests/LabLogFlowUITests.swift:146: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : XCTAssertTrue failed - sign-in against Supabase Auth
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' failed (53.164 seconds).
+LabLogUITests/LabLogFlowUITests.swift:146: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : XCTAssertTrue failed - sign-in against Supabase Auth
+Test Case '-[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer]' failed (47.020 seconds).
