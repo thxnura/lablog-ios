@@ -35,6 +35,21 @@
 
 ## Entries
 
+### [2026-10-16] AI: viva sheet update and dark-mode check
+**Type:** AI-prompt
+**AI prompt used:**
+    > so whats next
+    > so update md and do the checks
+**AI result:** worked.
+- **Viva sheet:** `VIVA-PREP.md` now covers the current app:
+  - the network setup (Sync → Server, hotspot fallback; no `local:setup` re-runs);
+  - a demo with retake, note and discard;
+  - questions on tombstones, the photo invariant and host-relative URLs;
+  - test counts of 47 / 5 / 14.
+
+  Live-coding Task A was rewritten because notes now exist after completion. Claude Code also caught a trap in the hints: a non-optional `Bool = false` on the `Codable` `Step` compiles, but makes catalog decoding throw `keyNotFound`. It was verified with a scratch decode before going in.
+- **Dark mode:** the titration, timer/Dynamic Island and editing UI tests were run with the simulator in dark appearance. All passed, and all 29 screenshots were reviewed. Nothing needed fixing: colours are semantic, white text only sits on coloured fills, and shadows are dropped in the dark. Added as Figure 13 in the report.
+
 ### [2026-10-16] Retake button hidden under the step guide's floating Next button (failure 012)
 **Type:** logic (UI) — caught by the new UI test
 **What I was doing:** Adding photo retake/remove, step notes, discard draft and a server-address setting. The new UI test `testEditingADraftAndServerAddress` completes Step 4 with a photo, then retakes it from the step guide.
