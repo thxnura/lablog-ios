@@ -2,7 +2,7 @@
 
 This log records every real failure hit while building LabLog (the exact error, what caused it and
 how it was fixed) and every prompt given to the AI assistant, Claude Code: what it produced and
-whether it worked. Entries were written as the work happened, between 12 and 16 October 2026.
+whether it worked. Entries were written as the work happened, between 12 and 18 October 2026.
 
 **Evidence.** Terminal failures keep their saved output next to a screenshot of it:
 `screenshots/NNN-*.log` and `NNN-*.png`. Each screenshot is a Terminal window showing that log,
@@ -30,6 +30,9 @@ Failure 013 has no image (see the entry).
 | [014](#failure-014) | 16 Oct | Discard confirmation: "Multiple matching elements found" |
 | [015](#failure-015) | 16 Oct | The Mac's IP changed mid-session; both sign-in UI tests failed |
 | [016](#failure-016) | 16 Oct | Full suite: titration and sign-in UI tests flaked |
+| [017](#failure-017) | 18 Oct | UI tests failed in a different place each run while the Mac was overloaded |
+| [018](#failure-018) | 18 Oct | Since 16 Oct the server deleted every new photo right after it was uploaded |
+| [019](#failure-019) | 18 Oct | "Start lab record" sometimes opened an empty "Submitted record" screen |
 
 ## Failures
 
@@ -264,6 +267,61 @@ After the failure, `xcodebuild` stayed alive for more than 10 minutes and had to
 **Cause:** The titration test was the last one still tapping step circles without confirming them. With the evidence section now above the observation, the re-layout after the photo made a tap land mid-animation (same class as 011). The sign-in tap was dropped once. The lecturer test passed through the same sign-in helper in this very run.
 **Fix:** The titration test uses `completeStep` (tap, then wait for "Step N done") for every step. The sign-in helper uses `tap(_:expecting:)`, which retries a dropped tap once.
 
+### Failure 017
+**UI tests failed in a different place each run while the Mac was overloaded** · 18 Oct 2026
+
+**Type:** UI test timing under load (no app change needed)
+**What I was doing:** Running the full suite after replacing the "Online" pill with the sync icon (ADR-024). All 51 unit tests passed every time.
+**Error / output:**
+    LabLogFlowUITests.swift:109: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : failed - step-1 not found.
+    LabLogFlowUITests.swift:83: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    # rerun: sign-in passed, titration failed somewhere else
+    LabLogFlowUITests.swift:109: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : failed - start-record not found.
+    # titration alone: passed in 152 s (usually ~90 s), then failed again
+    <unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : Failed to synthesize event: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: TextField, … identifier: 'observation'
+    Load Avg: 10.54, 17.98, 27.88        LabLog %CPU while idle: 0.0 0.0 0.0 0.0 0.0
+**Screenshot:** ![017](screenshots/017-ui-tests-flaky-under-load.png) (log: `017-ui-tests-flaky-under-load.log`)
+**Cause:** Each run failed at a different step, and each failure was a tap or a focus that never arrived: the next screen didn't open, or the text field had no keyboard when the test typed. The Mac's load average was near 28 at the time (other work was running), and a test that normally takes about 90 seconds took 152. The app itself was idle at 0% CPU, so it was not busy or stuck; the simulator was slow to deliver events. The new indicator was not involved: none of the failures touched the toolbar.
+**Fix:** The test helpers now confirm every tap and focus and retry: `tap(_:expecting:)` retries up to twice, `openGuide` re-taps when the guide doesn't open, and a new `focus(_:)` waits for the keyboard before typing (the observation and step-note fields). The next full run passed: 51 unit tests and 5 UI tests. The app code was not changed for this. The dark-mode rerun then hit one more dropped tap of the same kind (*Mark step done* in the step guide, `LabLogFlowUITests.swift:223`) while the backend tests ran alongside; that tap now goes through `tap(_:expecting:)` too, and the rerun passed.
+
+### Failure 018
+**Since 16 Oct the server deleted every new photo right after it was uploaded** · 18 Oct 2026
+
+**Type:** data loss in sync (backend). Found by reviewing screenshots, not by a failing test
+**What I was doing:** Rebuilding the report figures after the full run. The lecturer's submission screen showed **0 Photos** for a titration record, whose Step 4 can't be completed without a photo.
+**Error / output:**
+    $ psql … (photos per record, newest first)
+     79be2925-… | submitted | 2026-10-18 05:18:58+00 | … |      0     ← every record since 16 Oct
+     94881176-… | submitted | 2026-10-14 16:59:08+00 | … |      1     ← records from 14 Oct still have theirs
+    $ docker logs … supabase_storage_lablog-backend
+    2026-10-18T05:22:36.014Z PUT /object/upload/sign/evidence/records/59ab1c65-…/439fcb6c-….jpg?token=redacted 200
+    2026-10-18T05:22:36.185Z DELETE /object/evidence 200      ← 171 ms after the upload
+    $ npm run test:e2e   (a new test that sends ids in upper case, as the app does)
+    ✖ upper-case ids, as the iOS app sends them, keep their photo
+      + actual - expected
+      + []
+      - [ 'ae7580fa-32a8-46da-9d15-f379f4a72fde' ]
+**Screenshot:** ![018](screenshots/018-photos-pruned-after-upload.png) (log: `018-photos-pruned-after-upload.log`)
+**Cause:** ADR-023 (16 Oct) made the sync payload carry a record's full photo set and the API delete any photo missing from it. The API checked this in code with `keepIds.includes(a.id)`. Swift's `JSONEncoder` writes UUIDs in upper case, but Postgres returns them in lower case, so the photo the app had just sent never matched and was deleted with its file. The backend tests generate lower-case ids, so they passed; the UI tests only waited for "Everything is synced", which was true. Records from 14 Oct were unaffected because they were synced before the prune existed.
+**Fix:** The API now lower-cases every id when it validates a request (`uuid()` in `src/dto/sync.dto.ts`), before any code compares ids. A new end-to-end test sends upper-case ids and checks that the photo row and file survive: it failed before the fix and passes after (15 of 15). Checked through the app as well: the next lecturer UI test's record has its photo in Postgres and in Storage. Photos lost between 16 and 18 Oct were test data on my Mac.
+
+### Failure 019
+**"Start lab record" sometimes opened an empty "Submitted record" screen** · 18 Oct 2026
+
+**Type:** app bug (a SwiftUI race), found by the final full test run
+**What I was doing:** The last full run before submitting, after the fixes above.
+**Error / output:**
+    t =    20.85s Tap "start-record" Any
+    t =    22.25s Waiting 6.0s for "step-1" Any to exist
+    LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : failed - step-1 not found.
+    # the screen at that moment:
+    NavigationBar … identifier: 'Submitted record'
+    StaticText … label: '0, of 0'
+    StaticText … label: 'No observation recorded.'
+**Screenshot:** ![019](screenshots/019-record-opened-empty.png) (log: `019-record-opened-empty.log`)
+**Cause:** `RecordCaptureView` had two tasks: one created its model, the other loaded it (and reloaded whenever the store changed). SwiftUI doesn't promise which starts first. When the load ran first, the model didn't exist yet, so nothing loaded; with no later store change, the screen kept an empty model. An empty model has no record, so it isn't a draft: the title said "Submitted record", with 0 of 0 steps and no way to work. The same test had passed four times today, so it happens rarely, but a student would have seen it.
+**Fix:** One task creates the model and loads it, and runs again when the store changes. The next full run passed.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -272,7 +330,7 @@ correction (also in the report, §9.3).
 | # | Exact prompt | What it produced | Result |
 |---|---|---|---|
 | 1 | "check the status of this project and install the app in my iphone" | Status review, the Xcode project, signing, and installation on my iPhone | Partially (failure 001) |
-| 2 | "it shows scaffold ready, wire lab view and other stuff, build the full app, and if u detect errors, those should be screenshoted and make a doc" | The full app (store, sync, auth, screens, camera/GPS wiring, tests) and a build log | Partially (failure 002) |
+| 2 | "it shows scaffold ready, wire lab view and other stuff, build the full app, and if u detect errors, those should be screenshoted and make a doc" | The full app (store, sync, auth, screens, camera/GPS wiring, tests) and a build log | Partially (failure 002; a race in its record screen surfaced on 18 Oct as failure 019) |
 | 3 | "i get this error repetatively" (with a screenshot of the crash dialog) | A diagnosis from the crash report and the fix | Worked |
 | 4 | "its look too much basic, make ui ux more like other porffesional app design with apple design skills" | The design system and a redesign of every screen | Partially (failures 003, 004) |
 | 5 | "yes and u shoeud authorize as me, do not include u" | Commits under my own identity | Worked |
@@ -287,9 +345,13 @@ correction (also in the report, §9.3).
 | 14 | "termiansl erros all looks like styles neh, for this lets do this, make small mac app, not inside this repo. make it inside documemnt/thanura and when we fiving logs, inte rendered same to mac terminal and we can capture ss from it", then "look its huge different", "now this is too mcuh perfect, adding shadow and all…", "i said u to take ss like this" (with my own screenshot) | TermShot, a small Mac app that shows a saved log in a real Terminal window on my desktop and saves the screenshot; the error images were re-taken with it in the style of my own screenshot | Partially (window title, margin marks, inactive windows, a captured keystroke (failure 013) and two style rounds, all fixed) |
 | 15 | "make word document" | `LabLog-Report.docx`, generated from the same Markdown (headings, tables, code, 14 images, page numbers) | Worked after two conversion bugs were fixed (lost spaces between links, a skipped image) |
 | 16 | "so whats next we have to build" | A plan: a runtime server address first (the viva network risk), then discard draft, photo retake and step notes | Worked |
-| 17 | "ok do next" | The four features above, across app and API, with 10 unit tests, 4 backend tests and a UI test; ADR-021 to 023 | Partially (failure 012 caught by the new UI test and fixed) |
+| 17 | "ok do next" | The four features above, across app and API, with 10 unit tests, 4 backend tests and a UI test; ADR-021 to 023 | Partially (failure 012 caught by the new UI test and fixed; the photo prune it added also deleted every new photo, found two days later as failure 018) |
 | 18 | "so whats next" | A short plan: update the viva sheet, check dark mode, then stop adding features before the deadline | Worked |
 | 19 | "so update md and do the checks" | `VIVA-PREP.md` rewritten for the current app (network setup, demo, new questions, a live-coding trap caught and verified); UI tests run in dark mode, 29 screens reviewed, Figure 13 | Worked (no fixes needed) |
+| 20 | "i checked the readme and other stuff, i cant give this repos to sir, make it ready to submit" | Both repos prepared for a reader: new READMEs, the report PDF in the repo, the failure log reorganised (index, failures in order, prompts table), template notes and exam wording removed, a broken `lint` script dropped | Worked |
+| 21 | "make repo public" | Full git history scanned for secrets (none), then both repos made public and checked without signing in | Worked |
+| 22 | "btw in readme and dark mode ss" | The dark-mode figure added to the README | Worked |
+| 23 | "btw make app more production ready, i mean this style online status look odd, make it production ready" (with a screenshot of the toolbar) | The "● Online 1" pill replaced by a quiet sync icon with an explanatory popover and Sync now (ADR-024), 4 unit tests, new screenshots | Partially (failure 017; the screenshot review found a signed-out icon that read as an account button, a notification left over from another test, "Your 0 records" wording and failure 018; the final full run found failure 019; all fixed) |
 
 ### Notes on selected prompts
 

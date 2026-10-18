@@ -1,0 +1,18 @@
+# xcodebuild test, 18 Oct, after replacing the Online pill: UI tests failed in a different place each run (excerpts)
+
+# full suite (51 unit tests passed; 3 of 5 UI tests passed)
+LabLogUITests/LabLogFlowUITests.swift:109: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : failed - step-1 not found.
+LabLogUITests/LabLogFlowUITests.swift:83: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+
+# rerun of those two: sign-in passed, titration failed somewhere else
+LabLogUITests/LabLogFlowUITests.swift:109: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : failed - start-record not found.
+
+# titration alone, twice: passed (152 s, usually ~90 s), then failed somewhere else again
+Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' passed (152.064 seconds).
+Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' failed (95.298 seconds).
+<unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : Failed to synthesize event: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: TextField, {{32.0, 608.0}, {338.0, 95.3}}, identifier: 'observation', placeholderValue: 'Masses, readings, colour changes, anything unexpected…'
+
+# meanwhile: the Mac was overloaded, and the app was idle
+Load Avg: 10.54, 17.98, 27.88
+CPU usage: 35.86% user, 38.44% sys, 25.68% idle
+LabLog %CPU while idle on a screen (5 samples): 0.0 0.0 0.0 0.0 0.0

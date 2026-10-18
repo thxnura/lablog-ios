@@ -1,0 +1,15 @@
+# xcodebuild test, final full run, 18 Oct 11:25: "Start lab record" opened an empty "Submitted record" screen (excerpt)
+
+    t =    20.85s Tap "start-record" Any
+    t =    22.25s Waiting 6.0s for "step-1" Any to exist
+    t =    28.55s Waiting 6.0s for "step-1" Any to exist
+    t =    34.92s Waiting 10.0s for "step-1" Any to exist
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : failed - step-1 not found.
+# the app's screen at that moment (UI hierarchy, excerpt)
+                            NavigationBar, 0x10382a670, {{0.0, 62.0}, {402.0, 54.0}}, identifier: 'Submitted record'
+                              StaticText, 0x103c28570, {{131.3, 72.7}, {139.3, 22.7}}, label: 'Submitted record'
+                              Other, 0x104205b40, {{324.3, 66.0}, {57.7, 36.0}}, identifier: 'sync-indicator', label: 'Sync status', value: Sign in to sync, 1...
+                                  Button, 0x1042051e0, {{324.3, 66.0}, {57.7, 36.0}}, identifier: 'sync-indicator', label: 'Sync status', value: Sign in to sync, 1...
+                                        StaticText, 0x103b27b10, {{16.0, 124.0}, {370.0, 104.0}}, label: '0, of 0'
+                                        StaticText, 0x1042060e0, {{32.0, 338.7}, {193.7, 22.7}}, label: 'No observation recorded.'
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (46.640 seconds).

@@ -26,7 +26,7 @@ review submissions in the same app.
 | Constraint design | `StepConstraintEngine`: a precedence DAG with photo and timer guards, graph validation with Kahn's algorithm, and invariants such as "a completed photo step keeps its photo" |
 | Native hardware | Camera (step evidence), GPS (location stamp on submit), Dynamic Island and Lock Screen (Live Activity timer), haptics, notifications |
 | Custom component | `ExperimentChecklist`: a timeline checklist with documented properties and events (report §8) |
-| Decision records and failure logs | [`docs/decision-records.md`](docs/decision-records.md) (ADR-001 to 023) and [`docs/failure-log.md`](docs/failure-log.md) (16 failures, every AI prompt) |
+| Decision records and failure logs | [`docs/decision-records.md`](docs/decision-records.md) (ADR-001 to 024) and [`docs/failure-log.md`](docs/failure-log.md) (19 failures, every AI prompt) |
 
 <table>
 <tr>
@@ -70,7 +70,7 @@ LabLog/
   LiveActivity/   timer coordinator (Live Activity and "ready" notification)
 Shared/           code shared by the app and the widget (activity data, App Intent)
 LabLogWidgets/    widget extension: Dynamic Island and Lock Screen
-LabLogTests/      47 unit tests
+LabLogTests/      51 unit tests
 LabLogUITests/    5 end-to-end UI tests
 docs/             report, decision records, failure log, screenshots
 ```
@@ -107,15 +107,15 @@ LabLogWidgets targets.
 xcodebuild test -project LabLog.xcodeproj -scheme LabLog \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
-47 unit tests (constraint engine, local store, sync engine, server endpoint, Live Activity and
-guides) and 5 UI tests (the titration flow to submission, the timer and Dynamic Island, sign-in and
+51 unit tests (constraint engine, local store, sync engine, server endpoint, sync indicator, Live
+Activity and guides) and 5 UI tests (the titration flow to submission, the timer and Dynamic Island, sign-in and
 sync, lecturer review, and draft editing with the server setting). The UI tests that sign in need
 the local backend running.
 
 ## Documentation
 
 - [`docs/LabLog-Report.pdf`](docs/LabLog-Report.pdf): the project report.
-- [`docs/decision-records.md`](docs/decision-records.md): 23 architecture decision records.
+- [`docs/decision-records.md`](docs/decision-records.md): 24 architecture decision records.
 - [`docs/failure-log.md`](docs/failure-log.md): every failure with its exact error, cause and fix, and every AI prompt.
 - [`docs/screenshots/`](docs/screenshots/): evidence and UI screenshots (see its README).
 

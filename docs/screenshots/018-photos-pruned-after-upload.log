@@ -1,0 +1,53 @@
+# 18 Oct: the lecturer view showed "0 Photos" for new submissions. Every record synced since 16 Oct had lost its photo on the server.
+$ docker exec supabase_db_lablog-backend psql -U postgres -d postgres -c "select r.id, r.status, r.submitted_at, r.created_at, (select count(*) from attachments a where a.record_id=r.id) as photos from lab_records r order by r.created_at desc limit 14;"
+                  id                  |  status   |      submitted_at      |       created_at       | photos 
+--------------------------------------+-----------+------------------------+------------------------+--------
+ 59ab1c65-55bc-41b2-9884-3527118e844e | draft     |                        | 2026-10-18 05:22:27+00 |      0
+ 79be2925-e6bc-4ad8-9a12-28f52445a831 | submitted | 2026-10-18 05:18:58+00 | 2026-10-18 05:18:26+00 |      0
+ 441b5f2e-2992-4c9a-95bc-d0a29c98f891 | draft     |                        | 2026-10-18 05:05:03+00 |      0
+ ac11fb19-1a3d-4bbd-8be3-81dec4518cdc | submitted | 2026-10-18 05:01:33+00 | 2026-10-18 05:00:41+00 |      0
+ f9718de8-c8e4-4f67-b2e0-354b64ef94a4 | draft     |                        | 2026-10-18 04:41:32+00 |      0
+ 8b579298-e7fa-4345-a49f-2f87ec4199de | draft     |                        | 2026-10-18 04:38:20+00 |      0
+ 3ab1b739-9148-496e-8663-e0136d9ab6a3 | submitted | 2026-10-18 04:34:46+00 | 2026-10-18 04:34:20+00 |      0
+ c03711dc-9613-4f84-9d4f-a2e6ec7284aa | draft     |                        | 2026-10-16 05:44:20+00 |      0
+ fd203409-1008-40c4-9b69-7aa1b6a1c69a | submitted | 2026-10-16 05:41:32+00 | 2026-10-16 05:41:06+00 |      0
+ e5f8e01b-938c-4d6d-bf4a-4abe889719ee | submitted | 2026-10-16 05:32:11+00 | 2026-10-16 05:31:44+00 |      0
+ a18193ae-b6e0-4fe5-929d-26d760e0ead8 | draft     |                        | 2026-10-14 17:02:07+00 |      1
+ 94881176-126a-406f-9151-94403549c5ef | submitted | 2026-10-14 16:59:08+00 | 2026-10-14 16:58:40+00 |      1
+ 2c776bf0-b3cd-4351-b43b-2b3a1fcab645 | submitted | 2026-10-14 16:55:14+00 | 2026-10-14 16:54:45+00 |      1
+ 03d887b7-5680-4ef3-9ecf-979b37a76c70 | draft     |                        | 2026-10-14 16:53:02+00 |      1
+(14 rows)
+
+$ docker logs --since 2026-10-18T05:22:30Z --until 2026-10-18T05:22:40Z supabase_storage_lablog-backend 2>&1 | python3 -c "import sys,json; [print(d['time'], d['req']['method'], d['req']['url'], d['res']['statusCode']) for d in map(json.loads, sys.stdin) if d.get('req')]"
+2026-10-18T05:22:35.885Z POST /object/upload/sign/evidence/records/59ab1c65-55bc-41b2-9884-3527118e844e/439fcb6c-c540-4333-9faf-760801d60606.jpg 200
+2026-10-18T05:22:36.014Z PUT /object/upload/sign/evidence/records/59ab1c65-55bc-41b2-9884-3527118e844e/439fcb6c-c540-4333-9faf-760801d60606.jpg?token=redacted 200
+2026-10-18T05:22:36.185Z DELETE /object/evidence 200
+
+# a new end-to-end test sends ids the way the app does (upper case)
+$ npm run test:e2e
+▶ editing drafts
+  ✔ a retaken photo replaces the old one on the server (875.185916ms)
+  ✖ upper-case ids, as the iOS app sends them, keep their photo (104.680167ms)
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'ae7580fa-32a8-46da-9d15-f379f4a72fde'
+    - ]
+    
+        at TestContext.<anonymous> (/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-backend/test/e2e.test.ts:259:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async Test.run (node:internal/test_runner/test:932:9)
+        at async Suite.processPendingSubtests (node:internal/test_runner/test:629:7) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: [],
+      expected: [ 'ae7580fa-32a8-46da-9d15-f379f4a72fde' ],
+      operator: 'deepStrictEqual'
+    }
+
+ℹ tests 15
+ℹ suites 7
+ℹ pass 14
+ℹ fail 1
