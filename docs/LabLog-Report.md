@@ -596,9 +596,9 @@ The tests confirm these behaviours on the simulator, on a physical iPhone and ag
 
 [1] L. Petthawadu, *SE5070 Enterprise Mobility: Individual Assignment*, MSc in IT, Enterprise Application Development, Year 1, Semester 1, 2026. Supplied course brief: `Assignment - Enterprise Mobility 2026-2.pdf`.
 
-[2] T. M. Peiris, *LabLog iOS Application: Source Code, Tests and Project Documentation*, 2026. Project repository: https://github.com/thxnura/lablog-ios. Local implementation supplied with this report.
+[2] D. T. M. Peiris, *LabLog iOS Application: Source Code, Tests and Project Documentation*, 2026. Project repository: https://github.com/thxnura/lablog-ios. Local implementation supplied with this report.
 
-[3] T. M. Peiris, *LabLog Backend: Source Code, Schema and End-to-End Tests*, 2026. Project repository: https://github.com/thxnura/lablog-backend. Local implementation supplied with this report.
+[3] D. T. M. Peiris, *LabLog Backend: Source Code, Schema and End-to-End Tests*, 2026. Project repository: https://github.com/thxnura/lablog-backend. Local implementation supplied with this report.
 
 [4] LabLog project, *Architecture Decision Records*, ADR-001 to ADR-030, 2026. Project artefact: `decision-records.md`.
 
