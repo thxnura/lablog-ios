@@ -384,8 +384,7 @@ final class LabLogFlowUITests: XCTestCase {
         sleep(2)
         snap("14-timer-row-and-pill")
 
-        element("timer-pill").tap()
-        XCTAssertTrue(element("timer-dial").waitForExistence(timeout: 5))
+        tap("timer-pill", expecting: "timer-dial") // retries a dropped tap (017)
         sleep(2)
         snap("15-timer-dial")
         element("timer-dial").tap()
