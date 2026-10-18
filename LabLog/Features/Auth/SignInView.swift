@@ -122,7 +122,7 @@ struct SignInView: View {
             await app.refreshAndSync()
         } catch {
             self.error = error.localizedDescription
-            serverUnreachable = (error as? AuthService.AuthError)?.isUnreachable ?? false
+            serverUnreachable = (error as? AuthService.AuthError)?.suggestsServerChange ?? false
         }
     }
 }

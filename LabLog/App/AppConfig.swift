@@ -12,6 +12,11 @@ struct AppConfig {
         apiBaseURL != nil && supabaseURL != nil && supabaseAnonKey != nil
     }
 
+    /// A hosted backend (HTTPS, e.g. Vercel + Supabase), as opposed to the local
+    /// stack on a Mac (HTTP on a LAN address). Only the local stack's address can
+    /// change, so only it can be edited in Sync → Server (ADR-025).
+    var isHosted: Bool { apiBaseURL?.scheme == "https" }
+
     static func fromBundle(_ bundle: Bundle = .main) -> AppConfig {
         func value(_ key: String) -> String? {
             guard let raw = bundle.object(forInfoDictionaryKey: key) as? String else { return nil }

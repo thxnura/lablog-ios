@@ -43,11 +43,25 @@ final class ServerEndpointTests: XCTestCase {
             try await auth.signIn(email: "student@lablog.test", password: "irrelevant")
             XCTFail("sign-in should fail")
         } catch let error as AuthService.AuthError {
-            XCTAssertTrue(error.isUnreachable)
+            XCTAssertTrue(error.suggestsServerChange)
             XCTAssertEqual(error.errorDescription,
                            "Can't reach the server at 127.0.0.1. If your Mac's address has changed, update it below.")
         } catch {
             XCTFail("unexpected error: \(error)")
         }
+    }
+
+    /// A hosted (HTTPS) backend has a fixed address: no server setting, and the
+    /// message is about the connection instead.
+    @MainActor
+    func testHostedBackendHasNoServerSettingToChange() async {
+        let hosted = AppConfig(apiBaseURL: URL(string: "https://lablog-backend.vercel.app/api"),
+                               supabaseURL: URL(string: "https://example.supabase.co"), supabaseAnonKey: "anon")
+        XCTAssertTrue(hosted.isHosted)
+        XCTAssertFalse(built.isHosted, "the local stack (HTTP on the LAN) can change address")
+
+        let unreachable = AuthService.AuthError.unreachable(host: "example.supabase.co", hosted: true)
+        XCTAssertFalse(unreachable.suggestsServerChange)
+        XCTAssertEqual(unreachable.errorDescription, "Can't reach the server. Check your internet connection and try again.")
     }
 }

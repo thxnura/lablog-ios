@@ -33,7 +33,7 @@ struct SyncStatusView: View {
                                 HStack(spacing: 6) {
                                     Text(app.serverHost ?? "Not configured")
                                         .monospacedDigit()
-                                    if app.config.isBackendConfigured {
+                                    if app.config.isBackendConfigured && !app.config.isHosted {
                                         Image(systemName: "chevron.right")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.tertiary)
@@ -43,9 +43,10 @@ struct SyncStatusView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .disabled(!app.config.isBackendConfigured)
+                        // A hosted backend has a fixed address; only the local stack's can change.
+                        .disabled(!app.config.isBackendConfigured || app.config.isHosted)
                         .accessibilityIdentifier("server-row")
-                        .accessibilityHint("Change the server address")
+                        .accessibilityHint(app.config.isHosted ? "" : "Change the server address")
                         Divider()
                         InfoRow(symbol: "books.vertical.fill", title: "Catalog", tint: .accentColor) {
                             Text(app.sync.catalogRefreshedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened))" } ?? "Bundled copy")

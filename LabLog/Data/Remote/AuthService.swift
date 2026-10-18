@@ -17,19 +17,22 @@ final class AuthService {
     enum AuthError: LocalizedError {
         case notConfigured
         case server(String)
-        /// The server address didn't answer: usually the Mac's IP has changed (failure 021).
-        case unreachable(host: String)
+        /// The server didn't answer. On the local stack that usually means the
+        /// Mac's IP has changed (failure 021), which the student can fix in place.
+        case unreachable(host: String, hosted: Bool)
 
         var errorDescription: String? {
             switch self {
             case .notConfigured: "Supabase isn't configured in this build (see Config/Secrets.xcconfig)."
             case .server(let message): message
-            case .unreachable(let host): "Can't reach the server at \(host). If your Mac's address has changed, update it below."
+            case .unreachable(_, hosted: true): "Can't reach the server. Check your internet connection and try again."
+            case .unreachable(let host, hosted: false): "Can't reach the server at \(host). If your Mac's address has changed, update it below."
             }
         }
 
-        var isUnreachable: Bool {
-            if case .unreachable = self { true } else { false }
+        /// Offer "Change server address": only the local stack's address can change.
+        var suggestsServerChange: Bool {
+            if case .unreachable(_, hosted: false) = self { true } else { false }
         }
     }
 
@@ -149,7 +152,7 @@ final class AuthService {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch let error as URLError where Self.unreachableCodes.contains(error.code) {
-            throw AuthError.unreachable(host: supabaseURL.host() ?? "the saved address")
+            throw AuthError.unreachable(host: supabaseURL.host() ?? "the saved address", hosted: config.isHosted)
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

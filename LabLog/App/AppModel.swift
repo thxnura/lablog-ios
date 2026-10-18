@@ -44,7 +44,9 @@ final class AppModel {
         // reaches the Mac there), so they don't depend on its Wi-Fi address (failure 015).
         let launchHost = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[Self.serverHostKey] as? String
         let savedHost = launchHost ?? (inMemory ? nil : UserDefaults.standard.string(forKey: Self.serverHostKey))
-        let endpoint = ServerEndpoint(built: config, host: config.isBackendConfigured ? savedHost : nil)
+        // A hosted build ignores a Mac address saved by an earlier local build.
+        let endpoint = ServerEndpoint(built: config,
+                                      host: config.isBackendConfigured && !config.isHosted ? savedHost : nil)
         let auth = AuthService(endpoint: endpoint)
         let reachability = Reachability()
 

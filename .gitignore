@@ -21,4 +21,5 @@ Package.resolved
 
 # Secrets (keep Supabase keys out of git)
 Secrets.xcconfig
+Secrets.hosted.xcconfig
 *.env
