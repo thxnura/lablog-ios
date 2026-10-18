@@ -688,7 +688,7 @@ The project declaration states that illustrations and diagrams were created in c
 
 ### F. Report Preparation Note
 
-The supplied Enterprise Software Architecture Assignment 2 report was used as a reference for the document layout. Its financial-services content was not used as evidence for LabLog. AI assistance was used to edit the prose and prepare the Word document. Original prompts in Appendix G and diagnostic records in Section 9 have been preserved. This revision changes the report only; it does not change the application or claim new test results.
+The supplied Enterprise Software Architecture Assignment 2 report was used as a reference for the document layout. Its financial-services content was not used as evidence for LabLog. AI assistance was used to edit the prose and prepare the Word document. Original prompts in Appendix G and diagnostic records in Section 9 have been preserved.
 
 
 ### G. AI-Assisted Development: Development Prompt Register
