@@ -26,7 +26,7 @@ review submissions in the same app.
 | Constraint design | `StepConstraintEngine`: a precedence DAG with photo and timer guards, graph validation with Kahn's algorithm, and invariants such as "a completed photo step keeps its photo" |
 | Native hardware | Camera (step evidence), GPS (location stamp on submit), Dynamic Island and Lock Screen (Live Activity timer), haptics, notifications |
 | Custom component | `ExperimentChecklist`: a timeline checklist with documented properties and events (report §8) |
-| Decision records and failure logs | [`docs/decision-records.md`](docs/decision-records.md) (ADR-001 to 024) and [`docs/failure-log.md`](docs/failure-log.md) (23 failures, every AI prompt) |
+| Decision records and failure logs | [`docs/decision-records.md`](docs/decision-records.md) (ADR-001 to 025) and [`docs/failure-log.md`](docs/failure-log.md) (23 failures, every AI prompt) |
 
 <table>
 <tr>
@@ -70,7 +70,7 @@ LabLog/
   LiveActivity/   timer coordinator (Live Activity and "ready" notification)
 Shared/           code shared by the app and the widget (activity data, App Intent)
 LabLogWidgets/    widget extension: Dynamic Island and Lock Screen
-LabLogTests/      52 unit tests
+LabLogTests/      53 unit tests
 LabLogUITests/    5 end-to-end UI tests
 docs/             report, decision records, failure log, screenshots
 ```
@@ -99,6 +99,13 @@ photos, submit. Records stay on the device.
 If the Mac's address changes later (another Wi-Fi, a phone hotspot), set it in the app under
 **Sync → Server** and tap **Test connection**; no rebuild is needed.
 
+### 3. iPhone builds against the hosted backend
+The API is also deployed on Vercel (`https://lablog-backend.vercel.app/api`) with a hosted Supabase
+project (ADR-025). Copy `Config/Secrets.hosted.example.xcconfig` to `Config/Secrets.hosted.xcconfig`
+(git-ignored) and fill it in: iPhone builds then use the hosted backend on any network, while the
+simulator and the UI tests stay on the local stack. The hosted accounts have their own passwords
+(not the demo ones above). The server address can't be edited in a hosted build.
+
 To run on a physical iPhone, choose your own team under *Signing & Capabilities* for the LabLog and
 LabLogWidgets targets.
 
@@ -107,7 +114,7 @@ LabLogWidgets targets.
 xcodebuild test -project LabLog.xcodeproj -scheme LabLog \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
-52 unit tests (constraint engine, local store, sync engine, server endpoint, sync indicator, Live
+53 unit tests (constraint engine, local store, sync engine, server endpoint, sync indicator, Live
 Activity and guides) and 5 UI tests (the titration flow to submission, the timer and Dynamic Island, sign-in and
 sync, lecturer review, and draft editing with the server setting). The UI tests that sign in need
 the local backend running.
@@ -115,7 +122,7 @@ the local backend running.
 ## Documentation
 
 - [`docs/LabLog-Report.pdf`](docs/LabLog-Report.pdf): the project report.
-- [`docs/decision-records.md`](docs/decision-records.md): 24 architecture decision records.
+- [`docs/decision-records.md`](docs/decision-records.md): 25 architecture decision records.
 - [`docs/failure-log.md`](docs/failure-log.md): every failure with its exact error, cause and fix, and every AI prompt.
 - [`docs/screenshots/`](docs/screenshots/): evidence and UI screenshots (see its README).
 

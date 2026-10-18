@@ -1,0 +1,9 @@
+# xcodebuild test, 18 Oct 13:03: the tap on the timer pill didn't open the step guide (excerpt)
+
+    t =    33.97s Tap "timer-pill" Any
+    t =    34.55s Waiting 5.0s for "timer-dial" Any to exist
+LabLogUITests/LabLogFlowUITests.swift:388: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : XCTAssertTrue failed
+# the screen after the tap, from the hierarchy attached to the failure: still the checklist, the pill still there
+NavigationBar, 0x10202e360, {{0.0, 62.0}, {402.0, 54.0}}, identifier: 'Lab record' <AX element pid: 58104, elementOrHash.elementID: 4376926448.34>
+Button, 0x102038bf0, {{119.7, 225.3}, {163.0, 40.0}}, identifier: 'timer-pill', label: 'Step 3 timer' <AX element pid: 58104, elementOrHash.elementID: 4379669920.247>
+Test Case '-[LabLogUITests.LabLogFlowUITests testPendulumTimer]' failed (40.627 seconds).
