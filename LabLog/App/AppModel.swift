@@ -68,8 +68,13 @@ final class AppModel {
         )
 
         CatalogSeed.installIfNeeded(into: store)
-        // An empty in-memory store has no records, so nothing from an earlier run applies.
-        if inMemory { StepTimerCoordinator.clearAll() }
+        // An empty in-memory store has no records, so nothing from an earlier run
+        // applies: no timers or notifications, and no session left in the Keychain
+        // by a test that stopped before signing out (tests sign in when they need to).
+        if inMemory {
+            StepTimerCoordinator.clearAll()
+            auth.signOut()
+        }
 
         UNUserNotificationCenter.current().delegate = notificationRouter
         notificationRouter.onOpenURL = { [weak self] url in self?.open(url) }

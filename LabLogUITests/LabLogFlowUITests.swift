@@ -295,13 +295,17 @@ final class LabLogFlowUITests: XCTestCase {
         completeStep(4) // the circle opens the (stubbed) camera; the photo completes the step
         XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 5))
 
-        // The toolbar's sync icon explains itself (not signed in here, so: sign in to sync).
+        // The toolbar's sync icon explains itself (not signed in here, so: sign in to sync),
+        // and its Sign in button opens the sign-in sheet right here (failure 020).
         element("sync-indicator").tap()
         XCTAssertTrue(element("sync-status-details").waitForExistence(timeout: 5))
         sleep(1)
         snap("34-sync-status-popover")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap() // dismiss
-        XCTAssertTrue(element("sync-status-details").waitForNonExistence(timeout: 5))
+        tap("sign-in-popover", expecting: "email")
+        sleep(1)
+        snap("35-sign-in-from-popover")
+        app.navigationBars.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(element("email").waitForNonExistence(timeout: 5))
 
         // Retake from the guide; a completed step can't lose its photo.
         openGuide(4)
@@ -354,7 +358,7 @@ final class LabLogFlowUITests: XCTestCase {
         let field = element("server-host")
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         func replaceHost(_ text: String) {
-            field.tap()
+            focus(field) // the keyboard must be up before typing (017)
             let old = (field.value as? String) ?? ""
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count + 2) + text)
         }
@@ -476,7 +480,10 @@ final class LabLogFlowUITests: XCTestCase {
         tap("review-Acid–Base Titration", expecting: "submission-student@lablog.test")
         sleep(1)
         snap("25-submissions")
-        element("submission-student@lablog.test").tap()
+        // The newest submission; retry a tap dropped while the list settles (017).
+        let submission = element("submission-student@lablog.test")
+        submission.tap()
+        if !app.staticTexts["Procedure"].waitForExistence(timeout: 6), submission.isHittable { submission.tap() }
         waitOrDump(app.staticTexts["Procedure"], timeout: 10, "submission detail")
         sleep(3) // photo + map tiles
         snap("26-submission-detail")
