@@ -66,34 +66,3 @@ struct RecordStatusBadge: View {
         .accessibilityElement(children: .combine)
     }
 }
-
-/// Toolbar pill: connectivity + outbox size, visible on every main screen.
-struct ConnectivityPill: View {
-    let isOnline: Bool
-    let pendingCount: Int
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(isOnline ? Theme.success : Theme.caution)
-                .frame(width: 7, height: 7)
-            Text(isOnline ? "Online" : "Offline")
-            if pendingCount > 0 {
-                Text("\(pendingCount)")
-                    .monospacedDigit()
-                    .padding(.horizontal, 5)
-                    .background(Theme.caution.opacity(0.18), in: Capsule())
-                    .foregroundStyle(Theme.caution)
-                    .contentTransition(.numericText(value: Double(pendingCount)))
-            }
-        }
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 4)
-        .animation(Theme.spring, value: pendingCount)
-        .animation(Theme.spring, value: isOnline)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isOnline ? "Online" : "Offline")
-        .accessibilityValue(pendingCount > 0 ? "\(pendingCount) waiting to sync" : "")
-        .accessibilityIdentifier("connectivity-pill")
-    }
-}

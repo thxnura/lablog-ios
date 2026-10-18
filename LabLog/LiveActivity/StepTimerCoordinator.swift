@@ -68,6 +68,17 @@ final class StepTimerCoordinator {
         scheduleReadyNotification(for: timed, record: record)
     }
 
+    /// A fresh start (UI tests launch with an empty in-memory store): drop timers
+    /// and "ready" notifications left over from an earlier run.
+    static func clearAll() {
+        for activity in Activity<StepTimerAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
+    }
+
     static func activeRecordIds() -> [UUID] {
         Activity<StepTimerAttributes>.activities.map(\.attributes.recordId)
     }

@@ -68,6 +68,8 @@ final class AppModel {
         )
 
         CatalogSeed.installIfNeeded(into: store)
+        // An empty in-memory store has no records, so nothing from an earlier run applies.
+        if inMemory { StepTimerCoordinator.clearAll() }
 
         UNUserNotificationCenter.current().delegate = notificationRouter
         notificationRouter.onOpenURL = { [weak self] url in self?.open(url) }

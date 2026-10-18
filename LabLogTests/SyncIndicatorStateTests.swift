@@ -1,0 +1,38 @@
+import XCTest
+@testable import LabLog
+
+/// The toolbar sync indicator: quiet when everything is fine, specific when it isn't.
+final class SyncIndicatorStateTests: XCTestCase {
+    private func state(configured: Bool = true, online: Bool = true,
+                       _ status: SyncEngine.Status = .idle, pending: Int = 0) -> SyncIndicatorState {
+        SyncIndicatorState(isConfigured: configured, isOnline: online, status: status, pendingCount: pending)
+    }
+
+    func testCalmWhenEverythingIsSynced() {
+        let s = state()
+        XCTAssertEqual(s, .synced)
+        XCTAssertNil(s.shortText, "no 'Online' label in the normal state")
+        XCTAssertFalse(s.showsCount)
+    }
+
+    func testOfflineWinsAndSaysSo() {
+        // Live reachability beats a stale engine status.
+        let s = state(online: false, .syncing, pending: 2)
+        XCTAssertEqual(s, .offline)
+        XCTAssertEqual(s.shortText, "Offline")
+        XCTAssertTrue(s.detail(pending: 2).contains("2 records are saved on this iPhone"))
+        XCTAssertFalse(s.canSyncNow)
+    }
+
+    func testWaitingFailedAndSignedOut() {
+        XCTAssertEqual(state(pending: 1), .waiting)
+        XCTAssertEqual(state(pending: 1).title(pending: 1), "1 record waiting to upload")
+        XCTAssertTrue(state(.failed("Server returned 500"), pending: 1).canSyncNow)
+        XCTAssertEqual(state(.signedOut, pending: 3), .signedOut)
+        XCTAssertEqual(state(.signedOut, pending: 0), .synced, "nothing waiting, nothing to nag about")
+    }
+
+    func testOnDeviceBuild() {
+        XCTAssertEqual(state(configured: false, online: false, pending: 4), .onDevice)
+    }
+}

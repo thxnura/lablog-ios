@@ -75,11 +75,21 @@ final class LabLogFlowUITests: XCTestCase {
         XCTFail("Step \(order) did not complete")
     }
 
+    /// Tap a text field and wait for the keyboard before typing: on a loaded
+    /// simulator the first tap can land before the field takes focus (017).
+    private func focus(_ field: XCUIElement) {
+        field.tap()
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 4) { field.tap() }
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4), "keyboard never appeared")
+    }
+
     /// Open the step guide by tapping the step card near its top.
     private func openGuide(_ order: Int) {
         let card = element("step-\(order)")
         scrollIntoView(card)
-        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 24)).tap()
+        let point = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0)).withOffset(CGVector(dx: 0, dy: 24))
+        point.tap()
+        if !element("close-guide").waitForExistence(timeout: 5) { point.tap() } // dropped tap (017)
         XCTAssertTrue(element("close-guide").waitForExistence(timeout: 5))
         sleep(1)
     }
@@ -90,15 +100,16 @@ final class LabLogFlowUITests: XCTestCase {
     }
 
     /// Tap something that navigates, then wait for the destination. A tap that
-    /// lands mid-transition can be dropped (failures 006 and 010), so retry once.
+    /// lands mid-transition can be dropped (failures 006 and 010), so retry.
     private func tap(_ id: String, expecting next: String) {
         let source = element(id)
         XCTAssertTrue(source.waitForExistence(timeout: 10), "\(id) not found")
         source.tap()
-        if !element(next).waitForExistence(timeout: 6) {
+        // A slow (loaded) simulator can drop a tap during a transition: retry twice (016, 017).
+        for _ in 0..<2 where !element(next).waitForExistence(timeout: 6) {
             if source.exists && source.isHittable { source.tap() }
-            waitOrDump(element(next), timeout: 10, next)
         }
+        waitOrDump(element(next), timeout: 10, next)
     }
 
     /// Wait for an element; on timeout fail with the app's AND SpringBoard's
@@ -204,12 +215,13 @@ final class LabLogFlowUITests: XCTestCase {
         openGuide(4)
         snap("06-guide-locked")
         // …tap a blocker to jump to its guide, and complete it from there.
-        app.buttons.containing(NSPredicate(format: "label CONTAINS 'Rinse and fill the burette'")).firstMatch.tap()
+        let blocker = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Rinse and fill the burette'")).firstMatch
+        blocker.tap()
+        if !element("guide-mark-done").waitForExistence(timeout: 5), blocker.exists { blocker.tap() } // dropped tap (017)
         XCTAssertTrue(element("guide-mark-done").waitForExistence(timeout: 5))
         sleep(1)
         snap("07-guide-step")
-        element("guide-mark-done").tap()
-        XCTAssertTrue(element("guide-next").waitForExistence(timeout: 5))
+        tap("guide-mark-done", expecting: "guide-next")
         sleep(1)
         snap("08-guide-done-next")
         closeGuide()
@@ -227,7 +239,7 @@ final class LabLogFlowUITests: XCTestCase {
 
         let observation = element("observation")
         scrollIntoView(observation)
-        observation.tap()
+        focus(observation)
         observation.typeText("Endpoint at 24.60 mL, faint pink persisted for 30 s. Concordant titres: 24.60, 24.55 mL.")
         if app.buttons["Done"].exists { app.buttons["Done"].tap() }
         sleep(1)
@@ -283,6 +295,14 @@ final class LabLogFlowUITests: XCTestCase {
         completeStep(4) // the circle opens the (stubbed) camera; the photo completes the step
         XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 5))
 
+        // The toolbar's sync icon explains itself (not signed in here, so: sign in to sync).
+        element("sync-indicator").tap()
+        XCTAssertTrue(element("sync-status-details").waitForExistence(timeout: 5))
+        sleep(1)
+        snap("34-sync-status-popover")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap() // dismiss
+        XCTAssertTrue(element("sync-status-details").waitForNonExistence(timeout: 5))
+
         // Retake from the guide; a completed step can't lose its photo.
         openGuide(4)
         let retake = element("guide-retake-photo")
@@ -297,7 +317,7 @@ final class LabLogFlowUITests: XCTestCase {
         let note = element("step-note")
         XCTAssertTrue(note.waitForExistence(timeout: 5))
         if !note.isHittable { app.swipeUp(velocity: .slow) }
-        note.tap()
+        focus(note)
         note.typeText("Titre 24.60 mL; faint pink lasted 30 s.")
         sleep(1)
         snap("29-step-note")

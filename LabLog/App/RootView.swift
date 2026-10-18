@@ -51,13 +51,11 @@ struct RootView: View {
     }
 }
 
-/// Shared toolbar item: connectivity + outbox size.
+/// Shared toolbar item: the sync status icon (see SyncStatusButton).
 struct ConnectivityToolbarItem: ToolbarContent {
-    @Environment(AppModel.self) private var app
-
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            ConnectivityPill(isOnline: app.reachability.isOnline, pendingCount: app.sync.pendingCount)
+            SyncStatusButton()
         }
     }
 }
