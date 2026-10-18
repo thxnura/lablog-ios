@@ -37,6 +37,7 @@ Failure 013 has no image (see the entry).
 | [021](#failure-021) | 18 Oct | Sign-in on my iPhone hung, then timed out: the Mac's IP had changed again |
 | [022](#failure-022) | 18 Oct | A UI test started signed in: a session left in the Keychain by a test that failed |
 | [023](#failure-023) | 18 Oct | Lecturer UI test: "Server returned 500: The connection to the database timed out" |
+| [024](#failure-024) | 18 Oct | After signing out, the previous student's records were still on the phone (privacy) |
 
 ## Failures
 
@@ -377,6 +378,16 @@ That new test step failed first: `XCTAssertTrue failed - sign-in-popover not fou
 **Cause:** The lecturer's submissions request reached the API, but the local database didn't answer in time. Docker's VM (3.8 GB) was shared with another project's container (`jenkins`, 714 MB), the Mac's load average was about 11, and a device build had just run. A minute later every service answered in milliseconds. The app did the right thing: it showed "Couldn't load submissions" with the server's message instead of an empty list.
 **Fix:** None in the code. The test passed on the rerun. It is one more reason for a hosted backend (§11).
 
+### Failure 024
+**After signing out, the previous student's records were still on the phone** · 18 Oct 2026
+
+**Type:** privacy / data ownership, reported from my iPhone
+**What I was doing:** Switching from the student to the lecturer on my phone, with the hosted build.
+**Error / output:** No error. After **Sign out**, the Labs and Records tabs still showed the student's records and photos ("it show offline data").
+**Screenshot:** none; reported in words. The fix is checked by the sign-in UI test (Records shows "No lab records" after signing out).
+**Cause:** Records are stored on the phone first and were never tied to an account there, so signing out only removed the session. Worse, a record that hadn't uploaded yet would have been uploaded by the next person to sign in, under their account.
+**Fix:** Signing out now clears the phone's records, notes, observations and photos, and ends timers and notifications; the catalog stays and the server keeps what synced (ADR-026). If anything is still waiting to upload, an alert warns that it will be lost. An open record screen closes itself when its record disappears. A store unit test covers the clearing.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -415,6 +426,8 @@ correction (also in the report, §9.3).
 | 29 | "ok now make vercel,json" | `vercel.json` running the function in Seoul (`icn1`), next to the database | Worked |
 | 30 | "https://lablog-backend.vercel.app test this" | A smoke test of the deployed API, as the app uses it (15 checks), with its test record cleaned up | Worked after one fix to the test itself: it looked for `guideSteps`, but the API returns `guide.steps` |
 | 31 | "now point it in app" | iPhone builds use the hosted backend through a git-ignored, iPhone-only config; the simulator and tests stay local; the Server row is read-only and the sign-in error fits a hosted build; 2 unit tests; installed on my iPhone | Worked |
+| 32 | "it show invalid password" (signing in as the lecturer on my iPhone) | Checked that the hosted lecturer account signs in (200) and that the phone's attempt reached the hosted server, not the Mac; the likely causes: an old saved password filled in by iOS, or a typo | Worked (no fault found in the app) |
+| 33 | "also when we logout it show offline data, fix it" | Sign-out clears the phone's records with a warning for unsent work, an open record closes itself, a unit test and a UI check (ADR-026) | Worked (failure 024) |
 
 ### Notes on selected prompts
 
