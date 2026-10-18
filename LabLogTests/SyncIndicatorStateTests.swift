@@ -21,14 +21,18 @@ final class SyncIndicatorStateTests: XCTestCase {
         XCTAssertEqual(s, .offline)
         XCTAssertEqual(s.shortText, "Offline")
         XCTAssertTrue(s.detail(pending: 2).contains("2 records are saved on this iPhone"))
-        XCTAssertFalse(s.canSyncNow)
+        XCTAssertNil(s.action, "nothing to do offline but keep working")
     }
 
     func testWaitingFailedAndSignedOut() {
         XCTAssertEqual(state(pending: 1), .waiting)
         XCTAssertEqual(state(pending: 1).title(pending: 1), "1 record waiting to upload")
-        XCTAssertTrue(state(.failed("Server returned 500"), pending: 1).canSyncNow)
+        XCTAssertEqual(state(pending: 1).action, .syncNow)
+        XCTAssertEqual(state(.failed("Server returned 500"), pending: 1).action, .syncNow)
         XCTAssertEqual(state(.signedOut, pending: 3), .signedOut)
+        XCTAssertEqual(state(.signedOut, pending: 3).action, .signIn, "signed out: the popover offers Sign in")
+        XCTAssertEqual(state(.signedOut, pending: 1).detail(pending: 1),
+                       "1 record is saved on this iPhone. Sign in to upload it.")
         XCTAssertEqual(state(.signedOut, pending: 0), .synced, "nothing waiting, nothing to nag about")
     }
 

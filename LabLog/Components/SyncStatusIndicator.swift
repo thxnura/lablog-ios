@@ -55,10 +55,14 @@ enum SyncIndicatorState: Equatable {
         }
     }
 
-    var canSyncNow: Bool {
+    /// The one thing the student can do about this state, if any.
+    enum Action: Equatable { case syncNow, signIn }
+
+    var action: Action? {
         switch self {
-        case .waiting, .failed: true
-        default: false
+        case .waiting, .failed: .syncNow
+        case .signedOut: .signIn
+        default: nil
         }
     }
 
@@ -84,7 +88,7 @@ enum SyncIndicatorState: Equatable {
             : "\(records) saved on this iPhone and will upload when you're back online."
         case .syncing: return "Uploading photos first, then records."
         case .failed(let message): return message
-        case .signedOut: return "\(records) saved on this iPhone. Sign in from the Sync tab to upload."
+        case .signedOut: return "\(records) saved on this iPhone. Sign in to upload \(n == 1 ? "it" : "them")."
         case .waiting: return "They upload automatically in a moment."
         case .synced: return "Your records and photos are on the server."
         }
@@ -96,11 +100,14 @@ enum SyncIndicatorState: Equatable {
 }
 
 /// The toolbar's sync status: an icon (plus "Offline", or the outbox size,
-/// when they matter). Tap for a one-sentence explanation and "Sync now".
+/// when they matter). Tap for a one-sentence explanation and the action that
+/// helps: "Sync now", or "Sign in" (which opens the sign-in sheet right here).
 struct SyncStatusButton: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showDetails = false
+    @State private var signInRequested = false
+    @State private var showSignIn = false
 
     private var pending: Int { app.sync.pendingCount }
 
@@ -135,14 +142,31 @@ struct SyncStatusButton: View {
             .animation(Theme.spring, value: pending)
         }
         .popover(isPresented: $showDetails, arrowEdge: .top) {
-            SyncStatusPopover(state: state, pending: pending, lastSyncedAt: app.sync.lastSyncedAt) {
-                Task { await app.sync.sync() }
+            SyncStatusPopover(state: state, pending: pending, lastSyncedAt: app.sync.lastSyncedAt) { action in
+                switch action {
+                case .syncNow:
+                    Task { await app.sync.sync() }
+                case .signIn:
+                    // Present the sheet once the popover has gone: UIKit won't
+                    // show a second presentation while the first is dismissing.
+                    signInRequested = true
+                    showDetails = false
+                }
             }
             .presentationCompactAdaptation(.popover)
+            .onDisappear {
+                if signInRequested {
+                    signInRequested = false
+                    showSignIn = true
+                }
+            }
+        }
+        .sheet(isPresented: $showSignIn) {
+            SignInView()
         }
         .accessibilityLabel("Sync status")
         .accessibilityValue(state.accessibilityValue(pending: pending))
-        .accessibilityHint("Shows details and Sync now")
+        .accessibilityHint("Shows what is waiting and what you can do")
         .accessibilityIdentifier("sync-indicator")
     }
 }
@@ -153,7 +177,7 @@ private struct SyncStatusPopover: View {
     let state: SyncIndicatorState
     let pending: Int
     let lastSyncedAt: Date?
-    let onSyncNow: () -> Void
+    let onAction: (SyncIndicatorState.Action) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
@@ -178,18 +202,31 @@ private struct SyncStatusPopover: View {
                     }
                 }
             }
-            if state.canSyncNow {
-                Button(action: onSyncNow) {
-                    Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .accessibilityIdentifier("sync-now-popover")
+            switch state.action {
+            case .syncNow?:
+                actionButton("Sync now", symbol: "arrow.triangle.2.circlepath", id: "sync-now-popover") { onAction(.syncNow) }
+            case .signIn?:
+                actionButton("Sign in", symbol: "person.fill", id: "sign-in-popover") { onAction(.signIn) }
+            case nil:
+                EmptyView()
             }
         }
         .padding(Theme.Space.l)
         .frame(width: 300)
+        // Keep the children's own identifiers (the Sign in button's): without
+        // .contain the container's id replaces every child's (failures 005, 020).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sync-status-details")
+    }
+
+    private func actionButton(_ title: String, symbol: String, id: String,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .accessibilityIdentifier(id)
     }
 }
