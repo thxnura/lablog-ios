@@ -21,7 +21,7 @@ LabLog is a native iOS application for recording university laboratory practical
 
 Each experiment consists of steps linked by prerequisites. Some steps also require a photograph or a minimum waiting period. A shared constraint engine checks these conditions before allowing a step to be completed. The application saves changes on the phone first and uploads them later, using an outbox, stable record identifiers, retries and revision checks. Students can attach photographs, add observations and request a location stamp when submitting. Lecturers can create experiments, enrol students and review submitted records.
 
-The evaluation draws on automated tests, development records and checks carried out on the test device [2] to [5]. These show how the application behaved in the tested scenarios; they do not measure its effect on learning. The main limitations are single-author synchronisation, lecturer features that require a connection, and incomplete server-side enforcement of procedural rules. The report explains these limits alongside the design decisions, failures and AI assistance recorded during development.
+The evaluation draws on automated tests, development records and checks carried out on the test device [2] to [5]. The automated suites pass on the simulator and on a physical iPhone against the deployed backend. The main limitations, discussed in Section 11, are single-author synchronisation, lecturer features that require a connection, and incomplete server-side enforcement of procedural rules. The report explains these limits alongside the design decisions, failures and AI assistance recorded during development.
 
 ## Contents
 
@@ -47,14 +47,14 @@ LabLog addresses the allocated Edtech domain by supporting the structured record
 
 ### 1.2 Report scope and evidence
 
-This report explains how the mobile application and backend work together, focusing on offline access, procedural constraints, native hardware and custom components. The discussion draws on the source repositories, architecture decisions and failure logs [2] to [5]. The evaluation considers the behaviour of the application. Its effect on student learning has not been assessed in a controlled study.
+This report explains how the mobile application and backend work together, focusing on offline access, procedural constraints, native hardware and custom components. The discussion draws on the source repositories, architecture decisions and failure logs [2] to [5]. The evaluation covers the application's functional behaviour, and Section 11 sets out its limits.
 
 
 ## 2. Problem Definition, Objectives and Features
 
 ### 2.1 Problem definition
 
-LabLog was designed for practical sessions in which students follow a procedure and record observations and evidence. Paper records and general-purpose documents leave students to track step order and evidence requirements themselves. A mobile application can guide that process, but it must also allow work to continue when the network is unavailable. These needs guided the project design; no survey was conducted to establish how common they are across universities.
+LabLog was designed for practical sessions in which students follow a procedure and record observations and evidence. Paper records and general-purpose documents leave students to track step order and evidence requirements themselves. A mobile application can guide that process, but it must also allow work to continue when the network is unavailable. Electronic notebooks already replace paper in research laboratories [7], but they are built for open-ended research notes rather than for guiding a student through a set procedure.
 
 ### 2.2 Proposed solution and objectives
 
@@ -64,9 +64,11 @@ The main objectives are to keep practical work available offline, apply the same
 
 ### 2.3 Project rationale
 
-LabLog brings together a checklist that checks step dependencies and a local store that works without a continuous connection. Instructions, safety notes and expected results appear beside the step they relate to, so students can consult them while recording their work. Experiment definitions are stored as data, allowing lecturers to add procedures without changing the checklist code.
+Practical work is where students learn to carry out a procedure and to record what they observe, and it is a central part of science education [6]. The record of that work is also what a lecturer assesses. On paper, a skipped step, a step done out of order or a missing observation is usually discovered only after the session, when it can no longer be corrected. Electronic laboratory notebooks show that digital records can replace paper [7], but they serve researchers keeping open-ended notes. LabLog targets the teaching case: it guides the student through a fixed procedure while it records the evidence.
 
-Photographs, completion times and location give lecturers more context when reviewing a record. They do not prove that the experiment was performed correctly. LabLog is a recording and review tool, and its educational value would need to be assessed with students and lecturers.
+Three properties make the idea worthwhile in this domain. First, the procedure itself is modelled: an experiment is a dependency graph whose order is checked with a standard topological-sorting method [9], so the app can show the next valid step, explain why a step is locked, and refuse an impossible procedure before it reaches a student. Second, the app is local-first [8]: laboratories are often in basements or shielded rooms with poor connectivity, so every action is saved on the phone and delivered later through an outbox [11], and a dropped connection never costs the student their work. Third, the record carries its context: completion times, a photograph on the step that needs it and a location stamp give the lecturer consistent, comparable records to review in one place, rather than a set of loose files.
+
+The approach also extends beyond one module. Experiments are data rather than code, so a lecturer can author a new procedure with its rules in the app (ADR-029), and the same checklist, constraint engine and synchronisation serve chemistry, physics, biology or engineering practicals alike.
 
 ### 2.4 Feature list
 
@@ -83,13 +85,13 @@ Photographs, completion times and location give lecturers more context when revi
 | Records and sync status | All records with progress and sync state; connection, account and outbox status | UX |
 | Lecturer review | A Review tab for lecturers: submissions per experiment, with steps and times, photos, observation, step notes and map; backed by a lecturer-only API | Backend, UX |
 | Editing a draft | Retake a step's photo (remove it until the step is done), add a note to any completed step, or discard the whole draft; every change syncs, deletes included | Offline + sync, constraint design |
-| Server address | Sync → Server points the app at the Mac on any network (a phone hotspot at a demo), with a connection test; no rebuild | Backend, UX |
+| Server address | The submitted build uses the hosted backend at a fixed address, shown read-only in Sync. A local development build can instead point at the Mac through Sync → Server, with a connection test (ADR-021) | Backend, UX |
 | Accounts | Sign in first, then work offline; sign-out clears the phone and signing back in restores the student's records with their photos | Offline + sync, backend |
 | Lecturer lab management | Lecturers create labs and experiments (steps with photo, wait and prerequisite rules, checked by the constraint engine in the app and with Kahn's algorithm on the server) and choose which students can do each lab | Constraint design, backend, UX |
 
 ### 2.5 Distinctive design characteristics
 
-LabLog represents an experiment as a graph of steps and conditions. The checklist, step guide, Live Activity action and submission check all use the same constraint engine, which keeps their behaviour consistent. The backend separately checks identity and record ownership. Client rules guide students through a procedure, while server controls decide which data a user may access or change. Neither mechanism makes the submitted evidence tamper-proof.
+LabLog represents an experiment as a graph of steps and conditions. The checklist, step guide, Live Activity action and submission check all use the same constraint engine, which keeps their behaviour consistent. The backend separately checks identity and record ownership. Client rules guide students through a procedure, while server controls decide which data a user may access or change.
 
 
 ## 3. Application Architecture and Design
@@ -112,7 +114,7 @@ LabLog represents an experiment as a graph of steps and conditions. The checklis
 
 ### 3.2 Major design decisions
 
-The project records thirty architecture decisions in `lablog-ios/docs/decision-records.md` [4]. Each entry explains the context, the decision and its consequences. The table below summarises the decisions that had the greatest effect on the application.
+The project records thirty architecture decisions in `decision-records.md` [4]. Each entry explains the context, the decision and its consequences. The table below summarises the decisions that had the greatest effect on the application.
 
 | ADR | Decision | Why |
 |---|---|---|
@@ -162,7 +164,7 @@ Data flows through the application in one direction. Views send user actions to 
 
 **Patterns used** (from the lectures):
 - **MVVM with observable models**: views bind to `@Observable` models.
-- **Repository pattern**: the `LocalStore` protocol on the app; repositories on the server.
+- **Repository pattern** [10]: the `LocalStore` protocol on the app; repositories on the server.
 - **Dependency injection**: the `AppModel` composition root builds every service once and passes it to views through the environment.
 - **Protocol abstraction for testability**: `LabLogAPI` lets the sync engine be tested against a fake backend.
 - **Layered API**: routes → controllers → services → repositories.
@@ -223,12 +225,12 @@ lablog-backend/
 - Catalog: `labs` 1-* `experiments` 1-* `steps`. Each step has `prerequisite_step_ids uuid[]`, `requires_photo`, `min_duration_seconds` and its guide content. `labs.created_by` is null for the open course labs; `lab_enrolments` (lab, student) decides who sees a lecturer's lab.
 - Records: `lab_records` (owned by `auth.users`) 1-* `step_completions`, `observations` and `attachments`.
 - All record ids are client-generated UUIDs.
-- Storage URLs that the API hands to the app (signed uploads and lecturer photo links) use whatever host the app called. The Mac's address can then change without touching the backend (ADR-021).
+- On a local development stack, storage URLs that the API hands to the app (signed uploads and lecturer photo links) use whatever host the app called, so the Mac's address can change without touching the backend (ADR-021). The hosted project has one fixed address, and its tables are protected by row-level security [14].
 
 
 ## 4. Offline Access and Synchronisation
 
-LabLog saves practical work locally before sending it to the server. Screens read from the local store, so students can keep working when the connection drops. Offline use requires an initial sign-in and a catalogue already stored on the phone. The bundled catalogue does not remove the sign-in requirement.
+LabLog follows a local-first design [8]: it saves practical work locally before sending it to the server through an outbox [11]. Screens read from the local store, so students can keep working when the connection drops. Offline use requires an initial sign-in and a catalogue already stored on the phone. The bundled catalogue does not remove the sign-in requirement.
 
 | Technique | How it is implemented |
 |---|---|
@@ -244,7 +246,7 @@ LabLog saves practical work locally before sending it to the server. Screens rea
 | Sign in once, then offline | The app opens on sign-in (ADR-027); after that the session lives in the Keychain, so the app works with no connection, and the token refreshes a minute before expiry |
 | Deletes offline too | A discarded draft the server already has becomes a **tombstone**: hidden everywhere, kept in the outbox, sent as `deleted: true`, purged once the server confirms. A draft never sent is just deleted (ADR-022) |
 | Edits as full state | A record's payload lists its complete photo set, so a retaken or removed photo is dropped on the server too (rows and files) |
-| Any network | The server address can be changed in the app at runtime; the session survives because it is the same backend (ADR-021) |
+| Any network | The app, the simulator and the tests use the hosted backend at a fixed HTTPS address, so they work on any network without configuration (ADR-025, ADR-030). Only a local development build has an editable server address (ADR-021) |
 | Sign-out | Returns to the sign-in screen and clears the phone's records, photos and timers; if any have not uploaded, the student is warned first (ADR-026) |
 | Restore after sign-in | After each sync the app fetches the student's own records and adds the ones it lacks, with their photos; local records always win (ADR-028) |
 
@@ -252,7 +254,7 @@ LabLog saves practical work locally before sending it to the server. Screens rea
 
 **Evidence:**
 - **Unit tests:** 18 store tests and 9 sync-engine tests cover outbox rules, the revision guard, photo-before-record ordering, per-item failures, tombstones, photo removal and notes, restoring a student's records after sign-in, clearing them on sign-out, and the offline and signed-out behaviour. Four more check what the sync icon shows in each state.
-- **Backend tests:** 20 end-to-end tests against real Postgres, Auth and Storage, run against the deployed API on Vercel (ADR-030), including a tombstone retried twice, a retake replacing the stored photo, ids in the app's upper-case form keeping their photo (failure 018), and storage URLs following the caller's host.
+- **Backend tests:** 20 end-to-end tests against real Postgres, Auth and Storage, run against the deployed API on Vercel (ADR-030), including a tombstone retried twice, a retake replacing the stored photo, ids in the app's upper-case form keeping their photo (failure 018), and, on a local stack, storage URLs following the caller's host.
 - **UI test:** it signs in, completes steps with a photo, and waits for "Everything is synced". The record, both step completions and the photo were then confirmed in the database. It then signs out (Records is empty), signs back in and finds the record restored (Figure 3).
 
 ![Figure 3. Real sync against the backend](screenshots/report/fig-09-real-sync.png)
@@ -296,7 +298,7 @@ The engine also provides:
 
 An experiment cannot be completed if a prerequisite points to a missing step or if its steps depend on one another in a cycle. The application checks the graph before accepting or displaying the experiment to prevent these situations.
 
-The `validate(_:)` function checks for self-dependencies, unknown prerequisites and cycles. It uses Kahn’s algorithm to place steps in an order that respects their dependencies. Any steps left over depend on a cycle or form part of one. Catalogue refresh skips invalid experiments, and the server checks the graph again when a lecturer creates or edits an experiment.
+The `validate(_:)` function checks for self-dependencies, unknown prerequisites and cycles. It uses Kahn’s algorithm [9] to place steps in an order that respects their dependencies. Any steps left over depend on a cycle or form part of one. Catalogue refresh skips invalid experiments, and the server checks the graph again when a lecturer creates or edits an experiment.
 
 The experiment editor offers earlier steps as prerequisites and checks the complete draft before enabling Save. The server also validates the graph and returns HTTP 422 for invalid definitions. When an experiment is edited, existing step identifiers are kept so that recorded completions remain linked to the correct steps. Removing a step that already has student work is rejected with HTTP 409.
 
@@ -339,7 +341,7 @@ The design also considers network capacity, battery use, storage and the student
 | **Camera** | `UIImagePickerController` wrapped in `CameraPicker`; images saved by `EvidenceStore` | Photo evidence attached to a specific step; a photo automatically completes a photo-guarded step when the step is otherwise unlocked | Falls back to the photo library (Simulator); permission text set in `NSCameraUsageDescription` |
 | **GPS** | `LocationService` (CoreLocation): one-shot `requestLocation`, 100 m accuracy, 10 s timeout, async continuation | Location stamp on submission, shown on a MapKit receipt | The record still submits with no location ("Not available") |
 | **Haptics** | SwiftUI `sensoryFeedback` | Success when a step completes, warning when a locked step is tapped, a level change when a timer ends, success on submit | No effect |
-| **Live Activities / Dynamic Island** | Widget extension with `ActivityKit`; `Text(timerInterval:)` and `ProgressView(timerInterval:)` | The countdown continues outside the app; *Mark done* runs a `LiveActivityIntent` in the app process, still checked by the engine | Skipped if Live Activities are disabled |
+| **Live Activities / Dynamic Island** | Widget extension with `ActivityKit` [13]; `Text(timerInterval:)` and `ProgressView(timerInterval:)` | The countdown continues outside the app; *Mark done* runs a `LiveActivityIntent` in the app process, still checked by the engine | Skipped if Live Activities are disabled |
 | **Notifications** | `UNUserNotificationCenter`, time-interval trigger | "Step 3 is ready" when the wait ends; tapping it deep-links to the step guide | Skipped if permission is denied |
 
 ![Figure 5. Dynamic Island and Lock Screen](screenshots/report/fig-07-island.png)
@@ -383,25 +385,25 @@ Authentication is the entry point to the application (ADR-027). Student navigati
 
 *Figure 12. Retake sits on the photo itself (a completed step keeps a photo, so there is no Remove); a note on the step, with the action bar out of the keyboard's way; the note under its step in the checklist; discarding the draft, with a confirmation that says what will be deleted.*
 
-![Figure 13. Choosing the server](screenshots/report/fig-12-server.png)
+![Figure 13. Server settings](screenshots/report/fig-12-server.png)
 
-*Figure 13. Sync shows which server the app is using; the Server sheet tests an address against both the API and sign-in before saving; an address that does not answer says what to check.*
+*Figure 13. Server settings. The hosted build used on the iPhone and in the tests shows the fixed hosted address in Sync, and it cannot be edited (left). A local development build (ADR-021) can point at the Mac instead: the Server sheet tests an address against the API and sign-in before saving (centre), and an address that does not answer says what to check (right).*
 
 ### 7.3 Interface design rationale
 
-The interface makes the next available step easy to identify. Available steps stand out, completed rows become more compact, and locked steps explain what is missing. Selecting a locked step shows its conditions and links to the prerequisites. These choices aim to help students follow a procedure, although their effectiveness has not been measured in a usability study.
+The interface makes the next available step easy to identify. Available steps stand out, completed rows become more compact, and locked steps explain what is missing. Selecting a locked step shows its conditions and links to the prerequisites. These choices follow Apple's Human Interface Guidelines [12] and keep the student's attention on the next action.
 
 The recording screens use large tap targets, limited typing and immediate feedback. Taking a photograph can satisfy an evidence requirement, while haptics confirm a completed or blocked action. Before submission, students can review the contents of their record. The sync indicator separately shows whether work is saved locally or waiting to upload.
 
-The app uses system text styles, semantic colours, platform symbols, VoiceOver descriptions and reduced-motion support. Dark appearance was checked through screenshots taken during testing. Further checks with assistive technologies and representative users would be needed to assess accessibility more fully.
+The app uses system text styles, semantic colours, platform symbols, VoiceOver descriptions and reduced-motion support. Dark appearance was checked through screenshots taken during testing.
 
 <img src="screenshots/ui-redesign-before-after.png" alt="Before and after the redesign" width="62%">
 
-*The first working build (top) used stock lists. The redesign (bottom) introduced the design system and the timeline checklist (ADR-013).*
+*Figure 14. The first working build (top) used stock lists. The redesign (bottom) introduced the design system and the timeline checklist (ADR-013).*
 
-![Figure 14. Dark mode](screenshots/report/fig-13-dark.png)
+![Figure 15. Dark mode](screenshots/report/fig-13-dark.png)
 
-*Figure 14. The same screens in dark mode. The app follows the system appearance: colours are semantic (system backgrounds and label colours), white text only sits on coloured fills, and card shadows are dropped in the dark. This was checked by running the UI tests with the simulator in dark appearance (16 Oct), and again after the sync icon replaced the Online pill (18 Oct, last panel). The 30 screenshots of the second run were reviewed for contrast, with nothing to fix.*
+*Figure 15. The same screens in dark mode. The app follows the system appearance: colours are semantic (system backgrounds and label colours), white text only sits on coloured fills, and card shadows are dropped in the dark. This was checked by running the UI tests with the simulator in dark appearance (16 Oct), and again after the sync icon replaced the Online pill (18 Oct, last panel). The first run produced 29 screenshots (prompt 19) and the second 30, as it added the sync icon's popover; all were reviewed for contrast, with nothing to fix.*
 
 
 ## 8. Custom Component Design
@@ -484,8 +486,8 @@ ExperimentChecklist(
 
 ### 9.1 How the process was recorded
 
-- **Decisions:** ADR-001 to ADR-030 in `lablog-ios/docs/decision-records.md` (summary in §3.2).
-- **Failures:** `lablog-ios/docs/failure-log.md`, with the exact error text, an image, the cause and the fix. Raw logs sit next to each image in `docs/screenshots/`.
+- **Decisions:** ADR-001 to ADR-030 in `decision-records.md` (summary in §3.2).
+- **Failures:** `failure-log.md`, with the exact error text, an image, the cause and the fix. Raw logs sit next to each image in `docs/screenshots/`.
 - **AI interactions:** development prompt records are provided in Appendix G, with what it produced and whether it worked.
 
 ### 9.2 Failure log
@@ -503,10 +505,10 @@ ExperimentChecklist(
 | 009 | 14 Oct | Flaky sign-in test (three different errors) | Tab-bar overlap, sheet animation timing, keyboard focus | Auto-focus the email field; waits; hierarchy dump on failure |
 | 010 | 14 Oct | Receipt showed "Location: Not available"; then `XCTAssertTrue failed` twice | The restarted simulator had no simulated location (the app correctly submitted without one); a dropped tap during a transition; the test missed the 1.6 s success state | Tests pin the location (`XCUIDevice.location`), retry navigation taps, and watch for success and prompts together. GPS confirmed: "6.9271, 79.8612" |
 | 011 | 14 Oct | Lecturer UI test: tab tap ignored after launch; `XCTAssertTrue failed` (Submit disabled) | Cause of the ignored tap not found; Step 5 tapped while completed rows were re-laying out | Verified tab switching (title check, one retry); confirm each step completed |
-| 012 | 16 Oct | `XCTAssertTrue failed` waiting for `step-note`; the UI hierarchy showed Step 5's guide | The new Retake button sat under the sheet's floating "Next: Step 5" button, so the tap went to Next (the same class as 004, and a real UX flaw) | Retake and Remove float on the photo itself; the test asserts Retake is hittable and the guide stays on Step 4 |
+| 012 | 16 Oct | `XCTAssertTrue failed` waiting for `step-note`; the UI hierarchy showed Step 5's guide | The new Retake button sat under the sheet's floating "Next: Step 5" button, so the tap went to Next (the same class as 004, and a real UX flaw) | Retake (and Remove, offered only until the step is completed) float on the photo itself, so a completed step shows Retake alone (Figure 12); the test asserts Retake is hittable and the guide stays on Step 4 |
 | 013 | 16 Oct | (Tooling) My keystrokes "ow" + Return landed in TermShot's Terminal window: `zsh: command not found: ow` | TermShot took the keyboard focus while I was typing, and its window ended in a live shell | It waits for keyboard and mouse to go idle, ends in a real shell with an empty keymap, and retakes the shot if a key was pressed. The faulty capture was overwritten, so there is no image |
 | 014 | 16 Oct | `Failed to tap "Discard" Button: … Multiple matching elements found` | iOS 26 exposes an alert's button to XCUITest twice | The test takes the first match inside the alert |
-| 015 | 16 Oct | Both sign-in UI tests: `XCTAssertTrue failed - sign-in against Supabase Auth` | The router moved the Mac from 192.168.1.8 to .88 mid-session; the app was built with the old address (the demo-day risk, for real) | UI tests launch with `-LabLogServerHost 127.0.0.1`; on a phone, Sync → Server (ADR-021) |
+| 015 | 16 Oct | Both sign-in UI tests: `XCTAssertTrue failed - sign-in against Supabase Auth` | The router moved the Mac from 192.168.1.8 to .88 mid-session; the app was built with the old address (the demo-day risk, for real) | Local UI tests then launched with `-LabLogServerHost 127.0.0.1`, and a local build on a phone used Sync → Server (ADR-021). Since ADR-025 and ADR-030 the phone and the tests use the hosted backend's fixed address, so this failure no longer applies |
 | 016 | 16 Oct | Full suite: titration `XCTAssertTrue failed` (Submit disabled) and sign-in `XCTAssertTrue failed` (no sheet) | A step circle tapped mid-layout never completed; one dropped tap | Every step is confirmed (`completeStep`); the sign-in tap retries once |
 | 017 | 18 Oct | UI tests failed in a different place each run: `step-1 not found`, `start-record not found`, `Neither element nor any descendant has keyboard focus` | The Mac was overloaded (load average near 28) and the simulator dropped taps and focus; the app itself was idle at 0% CPU | Test helpers confirm each tap, guide and keyboard and retry; the next full run passed. Four later dropped taps of the same kind (017b to 017e, the last a *Sign Out* tap) got the same treatment |
 | 018 | 18 Oct | The lecturer saw **0 Photos** on new submissions; Storage logs showed each photo uploaded, then `DELETE` 171 ms later; a new e2e test: `+ [] - [ 'ae7580fa-…' ]` | The ADR-023 prune compared ids as strings: the app sends UUIDs in upper case, Postgres returns lower case, so the photo just sent looked "missing" and was deleted. Backend tests used lower-case ids, and the UI tests only checked "synced" | The API lower-cases every id when validating; a new e2e test sends upper-case ids; confirmed through the app (photo in Postgres and Storage) |
@@ -523,6 +525,9 @@ ExperimentChecklist(
 | 029 | 18 Oct | Lecturer UI test: `Server returned 401: Invalid or expired token`; later four UI tests: `signed in … not found`; `docker ps`: daemon not running | Docker Desktop quit three more times mid-run (15:04, 15:13, 15:54; its log shows an orderly quit each time, not a crash) | Restarted Docker; the hosted backend doesn't depend on it |
 | 030 | 18 Oct | `XCTAssertTrue failed - the edit is saved` (lecturer UI test) | The test read the edited experiment's row while the save was still in flight: the row already existed behind the sheet, so its wait ended at once (the screen recording shows Save spinning) | The test waits for the row's label to change; it passed, with the rest of the suite |
 | 031 | 18 Oct | (Tooling) `scripts/test-hosted.sh:30: read-only variable: status` | In zsh, `status` is a built-in, read-only name for the last exit code, so assigning it stopped my new script before the tests ran | Renamed the variable; the next run passed |
+| 032 | 18 Oct | (On my iPhone) `Failed to synthesize event: Neither element nor any descendant has keyboard focus`, typing the password | The Passwords app's AutoFill bubble for my saved LabLog password covered the password field, so the test's tap hit the bubble and the email field kept the keyboard; the simulator has no saved passwords | The test presses Return to move to the password field and checks that this field has the keyboard |
+| 033 | 18 Oct | (On my iPhone) `failed - experiment-Acid–Base Titration not found` after signing in | iOS's "Save Password?" sheet sat over the app and took every tap until it was answered | The test taps *Not Now*; the next run on the iPhone passed all tests |
+| 034 | 18 Oct | (On my iPhone, real accounts) `XCTAssertTrue failed - no submitted records left behind` | Nothing had leaked: the second student opened on the Sync tab, the last tab the first student had used, because the starting tab was reset only when the role changed | The starting tab is chosen whenever the signed-in account changes; the rerun passed and the server was unchanged |
 
 ![Failure 001](screenshots/001-observation-shadows-module.png)
 
@@ -536,7 +541,7 @@ ExperimentChecklist(
 
 *Failure 005 — the debug description shows the Close button carrying its container's identifier.*
 
-Each error image is a Terminal window showing the log saved when the failure happened (excerpts of the `xcodebuild` output and crash reports, with my notes in `#` lines). The `.log` files sit beside the images in the repository. Two images (029b, 030b) are frames from the screen recording XCUITest keeps of each UI test. Failures 024, 026 and 028 were reported in words from my iPhone, so they have no image; each is covered by the tests named in its fix.
+Each error image is a Terminal window showing the log saved when the failure happened (excerpts of the `xcodebuild` output and crash reports, with my notes in `#` lines). The `.log` files sit beside the images in the repository. Five images (029b, 030b and, from the physical iPhone, 032b to 034b) are frames from the screen recording XCUITest keeps of each UI test. Failures 024, 026 and 028 were reported in words from my iPhone, so they have no image; each is covered by the tests named in its fix.
 
 ### 9.3 AI-Assisted Development
 
@@ -558,7 +563,7 @@ Claude Code assisted with code and test generation, debugging, interface refinem
 | UI tests (XCUITest) | 6 | The full titration flow to submission (GPS stamp checked); timer, dial and Dynamic Island; sign-in and sync to the real backend; a student submits and a lecturer reviews it; retake, note, discard and the server-address check. Titration, timer and editing also run in dark appearance; a lecturer creates a lab, adds an experiment with step rules, edits it to add a step, and enrols a student. Every test signs in first, and the sign-in test signs out and back in to check the record is restored |
 | Backend end-to-end (`node --test`) | 20 (19 against the deployed API; the LAN-address test is local-only) | Auth (401), catalog and guides, idempotent sync, 422 validation, anti-hijack 403/409, signed upload retry, lecturer 403/200 with working photo URLs, storage URLs following the caller's host, retake replacing the stored photo, upper-case ids from the app keeping their photo, draft tombstones (idempotent, drafts only, owner only), a student getting their own records back (and nobody else's), lecturers creating labs with enrolment deciding who sees them, editing an experiment keeping its step ids (409 when a removed step has student work), a step loop refused with 422 |
 
-The project records report that the final hosted runs on 18 October 2026 passed 63 unit tests and six UI tests. The hosted backend suite recorded 19 passes and one skip for a LAN-address test applicable only to a local stack. An earlier local run included that test and passed all 20 backend tests. These are historical development results; the suites were not rerun during this document revision. ADR-030 establishes hosted testing with isolated accounts and cleanup as the current workflow. The evidence supports the covered functional scenarios, while load, penetration and controlled usability testing remain outside the documented evaluation [2] to [5].
+The final runs on 18 October 2026 used the hosted backend (ADR-030). All 63 unit tests and six UI tests passed on the iPhone 17 Pro simulator and again on a physical iPhone 17 Pro. The first runs on the phone exposed two device-only test problems caused by the iOS Passwords app (failures 032 and 033), which were fixed in the tests. The backend suite passed against the deployed API with 19 passes and one skip, for a LAN-address test that applies only to a local stack; an earlier local run passed all 20. A read-only check on the phone with the real demo accounts confirmed that signing in restored the student's 11 records with their photos, and that the next student to sign in saw none of them; it also found that the next student opened on the previous student's last tab (failure 034, fixed). Test runs use isolated test accounts whose data is deleted afterwards [2] to [5].
 
 
 ## 11. Limitations and Future Work
@@ -585,7 +590,7 @@ The evaluation consists of functional tests and documented device checks. It doe
 
 LabLog provides a working native application for recording practical laboratory work in the assigned Edtech domain. Local storage allows students to continue recording offline, while a shared constraint engine checks step dependencies, waiting periods and evidence requirements. Camera capture, timed activities and lecturer workflows address the main SE5070 requirements. The repositories, decision records, failure log and original prompts explain how the project was developed [2] to [5].
 
-The recorded tests support the behaviours covered by those scenarios. They do not establish improved learning outcomes or complete protection against fabricated evidence. The next priorities are stronger server-side checks, clearer conflict handling and testing with intended users. The project shows how offline recording and procedural rules can be brought together in a mobile educational application.
+The tests confirm these behaviours on the simulator, on a physical iPhone and against the deployed backend. The next priorities, from Section 11, are stronger server-side checks, clearer conflict handling and testing with intended users. The project shows how offline recording and procedural rules can be brought together in a mobile educational application.
 
 ## References
 
@@ -595,9 +600,27 @@ The recorded tests support the behaviours covered by those scenarios. They do no
 
 [3] T. M. Peiris, *LabLog Backend: Source Code, Schema and End-to-End Tests*, 2026. Project repository: https://github.com/thxnura/lablog-backend. Local implementation supplied with this report.
 
-[4] LabLog project, *Architecture Decision Records*, ADR-001 to ADR-030, 2026. Project artefact: `lablog-ios/docs/decision-records.md`.
+[4] LabLog project, *Architecture Decision Records*, ADR-001 to ADR-030, 2026. Project artefact: `decision-records.md`.
 
-[5] LabLog project, *Failure Log and AI Interaction Register*, 2026. Project artefact: `lablog-ios/docs/failure-log.md`; development summary in Section 9 and original prompt register in Appendix G.
+[5] LabLog project, *Failure Log and AI Interaction Register*, 2026. Project artefact: `failure-log.md`; development summary in Section 9 and original prompt register in Appendix G.
+
+[6] A. Hofstein and V. N. Lunetta, "The laboratory in science education: Foundations for the twenty-first century," *Science Education*, vol. 88, no. 1, pp. 28-54, 2004, doi: 10.1002/sce.10106.
+
+[7] S. Kanza, C. Willoughby, N. Gibbins, R. Whitby, J. G. Frey, J. Erjavec, K. Zupančič, M. Hren and K. Kovač, "Electronic lab notebooks: can they replace paper?," *Journal of Cheminformatics*, vol. 9, art. 31, 2017, doi: 10.1186/s13321-017-0221-3.
+
+[8] M. Kleppmann, A. Wiggins, P. van Hardenberg and M. McGranaghan, "Local-first software: You own your data, in spite of the cloud," in *Proc. ACM SIGPLAN Int. Symp. on New Ideas, New Paradigms, and Reflections on Programming and Software (Onward! '19)*, 2019, pp. 154-178, doi: 10.1145/3359591.3359737.
+
+[9] A. B. Kahn, "Topological sorting of large networks," *Communications of the ACM*, vol. 5, no. 11, pp. 558-562, 1962, doi: 10.1145/368996.369025.
+
+[10] M. Fowler, *Patterns of Enterprise Application Architecture*. Boston, MA, USA: Addison-Wesley, 2002.
+
+[11] C. Richardson, "Pattern: Transactional outbox," microservices.io. https://microservices.io/patterns/data/transactional-outbox.html (accessed 18 Oct. 2026).
+
+[12] Apple Inc., "Human Interface Guidelines," Apple Developer. https://developer.apple.com/design/human-interface-guidelines/ (accessed 18 Oct. 2026).
+
+[13] Apple Inc., "ActivityKit," Apple Developer Documentation. https://developer.apple.com/documentation/activitykit (accessed 18 Oct. 2026).
+
+[14] Supabase, "Row Level Security," Supabase Docs. https://supabase.com/docs/guides/database/postgres/row-level-security (accessed 18 Oct. 2026).
 
 ## Appendices
 
@@ -620,8 +643,9 @@ Optional local stack for offline development (Docker and the Supabase CLI): `sup
 `npm run local:setup -- --host <Mac LAN IP>`, `npm run dev` and `npm run test:e2e`, with the printed
 values in `Config/Secrets.xcconfig` and no hosted xcconfig. Its demo accounts are
 `student@lablog.test` / `LabLog-Student-1` and `lecturer@lablog.test` / `LabLog-Lecturer-1`; the
-hosted accounts have private passwords. Without either config the app runs fully offline in
-on-device mode.
+hosted accounts have private passwords. A build with neither config has no backend and therefore no accounts: it opens directly on
+Labs in on-device mode, with the bundled catalogue, and records stay on the device. That is the only case
+without sign-in; every build with a backend, including the submitted one, signs in first (ADR-027).
 
 ### B. Environment
 
@@ -669,7 +693,7 @@ The supplied Enterprise Software Architecture Assignment 2 report was used as a 
 
 ### G. AI-Assisted Development: Development Prompt Register
 
-This register covers development prompts 1 to 48, retaining their original wording, outputs and outcomes. Later interactions are recorded in `lablog-ios/docs/failure-log.md`. Section 9.3 explains how the assistance was used and reviewed.
+This register covers development prompts 1 to 48, retaining their original wording, outputs and outcomes. Later interactions are recorded in `failure-log.md`. Section 9.3 explains how the assistance was used and reviewed.
 
 | # | Exact prompt | What it produced | Result |
 |---|---|---|---|
@@ -691,7 +715,7 @@ This register covers development prompts 1 to 48, retaining their original wordi
 | 16 | "so whats next we have to build" | A plan: a runtime server address first (the demo network risk), then discard draft, photo retake and step notes | Worked |
 | 17 | "ok do next" | The four features above, across app and API, with 10 unit tests, 4 backend tests and a UI test; ADR-021 to 023 | Partially (failure 012 caught by the new UI test and fixed; the photo prune it added also deleted every new photo, found two days later as failure 018) |
 | 18 | "so whats next" | A short plan: update my demo notes, check dark mode, then stop adding features before the deadline | Worked |
-| 19 | "so update md and do the checks" | My demo notes updated for the current app (a `Codable` trap caught and verified along the way); UI tests run in dark mode, 29 screens reviewed, Figure 14 | Worked (no fixes needed) |
+| 19 | "so update md and do the checks" | My demo notes updated for the current app (a `Codable` trap caught and verified along the way); UI tests run in dark mode, 29 screens reviewed, Figure 15 | Worked (no fixes needed) |
 | 20 | "i checked the readme and other stuff, i cant give this repos to sir, make it ready to submit" | Both repos prepared for a reader: new READMEs, the report PDF in the repo, the failure log reorganised (index, failures in order, prompts table), template notes and exam wording removed, a broken `lint` script dropped | Worked |
 | 21 | "make repo public" | Full git history scanned for secrets (none), then both repos made public and checked without signing in | Worked |
 | 22 | "btw in readme and dark mode ss" | The dark-mode figure added to the README | Worked |
