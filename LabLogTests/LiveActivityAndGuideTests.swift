@@ -18,6 +18,16 @@ final class LiveActivityAndGuideTests: XCTestCase {
 
     // MARK: Timed step
 
+    /// A first step with a wait drives the Dynamic Island from the record's start (failure 028).
+    func testTimedFirstStepRunsFromTheRecordStart() {
+        let started = Date(timeIntervalSince1970: 1_000)
+        let first = step(1, timer: 120)
+        let timed = StepTimerCoordinator.timedStep(steps: [first], completions: [], startedAt: started)
+        XCTAssertEqual(timed?.step.id, first.id)
+        XCTAssertEqual(timed?.start, started)
+        XCTAssertEqual(timed?.end, started.addingTimeInterval(120))
+    }
+
     func testNoTimerUntilPrerequisitesAreDone() {
         let a = step(1), b = step(2, prereqs: [a.id], timer: 300)
         XCTAssertNil(StepTimerCoordinator.timedStep(steps: [a, b], completions: []))

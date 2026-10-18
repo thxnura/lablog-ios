@@ -26,6 +26,9 @@ struct StepConstraintEngine {
         /// When each prerequisite was completed — used for min-duration timers.
         let completionTimes: [UUID: Date]
         let now: Date
+        /// When the lab record was started: the wait of a timed step with no
+        /// prerequisites runs from here, since that's when the step unlocked.
+        var recordStartedAt: Date? = nil
     }
 
     /// Returns the reason a step is locked, or nil if it may be completed now.
@@ -36,11 +39,13 @@ struct StepConstraintEngine {
             return .prerequisitesIncomplete(remaining: missing)
         }
 
-        // 2. Min-duration timer, measured from the latest prerequisite completion.
+        // 2. Min-duration timer, measured from when the step unlocked: the latest
+        //    prerequisite completion, or the record's start for a step with none.
+        //    (Anchoring on `now` would restart the wait on every check: failure 028.)
         if let minDuration = step.minDurationSeconds {
             let anchor = step.prerequisiteStepIds
                 .compactMap { ctx.completionTimes[$0] }
-                .max() ?? ctx.now
+                .max() ?? ctx.recordStartedAt ?? ctx.now
             let elapsed = ctx.now.timeIntervalSince(anchor)
             let remaining = Int(ceil(Double(minDuration) - elapsed))
             if remaining > 0 {

@@ -34,6 +34,8 @@ final class SyncEngine {
     @ObservationIgnored private let isOnline: () -> Bool
     @ObservationIgnored private let isSignedIn: () -> Bool
     @ObservationIgnored private let readPhoto: (String) throws -> Data
+    @ObservationIgnored private let downloadPhoto: (URL) async throws -> Data
+    @ObservationIgnored private let savePhoto: (Data, UUID) throws -> String
     @ObservationIgnored private let constraints = StepConstraintEngine()
     @ObservationIgnored private let logger = Logger(subsystem: "com.thxnura.LabLog", category: "sync")
     @ObservationIgnored private var isRunning = false
@@ -48,12 +50,16 @@ final class SyncEngine {
          store: LocalStore,
          isOnline: @escaping () -> Bool,
          isSignedIn: @escaping () -> Bool,
-         readPhoto: @escaping (String) throws -> Data = EvidenceStore.data(for:)) {
+         readPhoto: @escaping (String) throws -> Data = EvidenceStore.data(for:),
+         downloadPhoto: @escaping (URL) async throws -> Data = SyncEngine.download,
+         savePhoto: @escaping (Data, UUID) throws -> String = EvidenceStore.save(data:id:)) {
         self.api = api
         self.store = store
         self.isOnline = isOnline
         self.isSignedIn = isSignedIn
         self.readPhoto = readPhoto
+        self.downloadPhoto = downloadPhoto
+        self.savePhoto = savePhoto
         refreshPendingCount()
     }
 
@@ -128,6 +134,36 @@ final class SyncEngine {
         }
     }
 
+    /// Restores the student's own records from the server: after signing in on
+    /// a new phone, or after signing out cleared this one (ADR-028). Records
+    /// already on the phone win, so nothing local is overwritten. Their photos
+    /// are downloaded, so the evidence can be viewed offline too.
+    func pullRecords() async {
+        guard let api, isOnline(), isSignedIn() else { return }
+        do {
+            let downloads = store.restore(try await api.myRecords())
+            for photo in downloads {
+                do {
+                    let fileName = try savePhoto(try await downloadPhoto(photo.url), photo.attachmentId)
+                    store.setAttachmentFile(id: photo.attachmentId, fileName: fileName)
+                } catch {
+                    logger.error("Photo download failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            refreshPendingCount()
+        } catch {
+            logger.error("Restoring records failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Downloads a signed photo URL, treating any non-2xx answer as an error.
+    nonisolated static func download(_ url: URL) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(status) else { throw APIError.badStatus(status, nil) }
+        return data
+    }
+
     /// Pulls the server catalog and caches it. Experiments whose step graph
     /// fails validation (cycle / dangling prerequisite) are skipped.
     func refreshCatalog() async {
@@ -136,19 +172,30 @@ final class SyncEngine {
             var experiments: [Experiment] = []
             var steps: [Step] = []
             let labs = try await api.labs()
-            for lab in labs {
-                for experiment in try await api.experiments(labId: lab.id) {
-                    let detail = try await api.experimentDetail(id: experiment.id)
-                    let issues = constraints.validate(detail.steps)
-                    guard issues.isEmpty else {
-                        logger.error("Skipping \(experiment.title, privacy: .public): invalid step graph \(String(describing: issues), privacy: .public)")
-                        continue
-                    }
-                    experiments.append(detail.experiment)
-                    steps += detail.steps
+            // One request per lab, then one per experiment: run each round
+            // concurrently instead of one after another (the catalog grows as
+            // lecturers add experiments, ADR-029).
+            let listed = try await withThrowingTaskGroup(of: [Experiment].self) { group in
+                for lab in labs { group.addTask { @MainActor in try await api.experiments(labId: lab.id) } }
+                return try await group.reduce(into: []) { $0 += $1 }
+            }
+            let details = try await withThrowingTaskGroup(of: ExperimentDetailDTO.self) { group in
+                for experiment in listed { group.addTask { @MainActor in try await api.experimentDetail(id: experiment.id) } }
+                return try await group.reduce(into: []) { $0.append($1) }
+            }
+            for detail in details {
+                let issues = constraints.validate(detail.steps)
+                guard issues.isEmpty else {
+                    logger.error("Skipping \(detail.title, privacy: .public): invalid step graph \(String(describing: issues), privacy: .public)")
+                    continue
                 }
+                experiments.append(detail.experiment)
+                steps += detail.steps
             }
             store.replaceCatalog(labs: labs, experiments: experiments, steps: steps)
+            // The server's list is this account's catalog: a lecturer's view or
+            // the labs another student was enrolled in don't stay on the phone.
+            store.keepOnlyLabs(Set(labs.map(\.id)))
             catalogRefreshedAt = Date()
             catalogError = nil
         } catch {

@@ -18,11 +18,46 @@ final class SyncEngineTests: XCTestCase {
         signedIn = true
     }
 
+    private var savedPhotos: [UUID: Data] = [:]
+
     private func makeEngine() -> SyncEngine {
         SyncEngine(api: api, store: store,
                    isOnline: { [unowned self] in online },
                    isSignedIn: { [unowned self] in signedIn },
-                   readPhoto: { _ in Data([0xFF, 0xD8]) })
+                   readPhoto: { _ in Data([0xFF, 0xD8]) },
+                   downloadPhoto: { _ in Data([0xFF, 0xD8, 0x01]) },
+                   savePhoto: { [unowned self] data, id in savedPhotos[id] = data; return "\(id).jpg" })
+    }
+
+    /// After signing in on a new or cleared phone, the student's records come
+    /// back from the server, with their photos, and a local record wins (ADR-028).
+    func testPullRestoresRecordsAndDownloadsTheirPhotos() async {
+        let experiment = CatalogSeed.recrystallisation.id
+        let step = store.steps(experimentId: experiment)[0]
+        let photoId = UUID()
+        let remote = SubmissionDTO(
+            id: UUID(), studentId: UUID(), studentEmail: nil, experimentId: experiment, status: "submitted",
+            latitude: 6.9, longitude: 79.8, createdAt: Date(), submittedAt: Date(),
+            stepCompletions: [.init(id: UUID(), stepId: step.id, completedAt: Date(), note: "24.60 mL")],
+            observations: [.init(id: UUID(), text: "Crystals formed")],
+            attachments: [.init(id: photoId, stepId: step.id, storagePath: "records/x/\(photoId).jpg",
+                                url: URL(string: "https://storage.test/photo.jpg"))])
+        let local = store.createRecord(experimentId: experiment)
+        api.mine = [remote, SubmissionDTO(id: local.id, studentId: UUID(), studentEmail: nil, experimentId: experiment,
+                                          status: "submitted", latitude: nil, longitude: nil, createdAt: Date(),
+                                          submittedAt: Date(), stepCompletions: [], observations: [], attachments: [])]
+
+        await makeEngine().pullRecords()
+
+        let restored = store.record(id: remote.id)
+        XCTAssertEqual(restored?.status, .submitted)
+        XCTAssertEqual(restored?.syncState, .synced, "restored records aren't uploaded again")
+        XCTAssertEqual(store.completions(recordId: remote.id).first?.note, "24.60 mL")
+        XCTAssertEqual(store.observation(recordId: remote.id)?.text, "Crystals formed")
+        XCTAssertEqual(store.attachments(recordId: remote.id).first?.localPath, "\(photoId).jpg", "photo downloaded")
+        XCTAssertNotNil(savedPhotos[photoId])
+        XCTAssertEqual(store.record(id: local.id)?.status, .draft, "the local copy wins")
+        XCTAssertEqual(store.pendingRecords().map(\.id), [local.id])
     }
 
     func testSuccessfulSyncDrainsOutbox() async {
@@ -180,6 +215,9 @@ private final class FakeAPI: LabLogAPI {
     }
 
     func submissions(experimentId: UUID) async throws -> [SubmissionDTO] { [] }
+
+    var mine: [SubmissionDTO] = []
+    func myRecords() async throws -> [SubmissionDTO] { mine }
 
     func uploadPhoto(_ data: Data, to signed: SignUploadDTO) async throws {
         events.append("upload:\(signed.path.split(separator: "/").last!.dropLast(4))")

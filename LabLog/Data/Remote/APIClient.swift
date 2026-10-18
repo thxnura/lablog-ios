@@ -11,6 +11,8 @@ protocol LabLogAPI {
     func uploadPhoto(_ data: Data, to signed: SignUploadDTO) async throws
     /// Lecturer only (the API returns 403 for students).
     func submissions(experimentId: UUID) async throws -> [SubmissionDTO]
+    /// The signed-in student's own records, to restore a phone after sign-in.
+    func myRecords() async throws -> [SubmissionDTO]
 }
 
 enum APIError: LocalizedError, Equatable {
@@ -52,7 +54,7 @@ struct APIClient: LabLogAPI {
         return ContinuousClock.now - started
     }
 
-    private func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+    func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
         guard let baseURL else { throw APIError.invalidURL }
         guard let token = await tokenProvider() else { throw APIError.notSignedIn }
         // Split off a query string: appendingPathComponent would percent-encode "?".
@@ -139,6 +141,10 @@ struct APIClient: LabLogAPI {
     func submissions(experimentId: UUID) async throws -> [SubmissionDTO] {
         try decoder.decode([SubmissionDTO].self,
                            from: try await request("records?experimentId=\(experimentId.uuidString.lowercased())"))
+    }
+
+    func myRecords() async throws -> [SubmissionDTO] {
+        try decoder.decode([SubmissionDTO].self, from: try await request("records/mine"))
     }
 
     /// PUTs the JPEG straight to Supabase Storage via the signed URL — the

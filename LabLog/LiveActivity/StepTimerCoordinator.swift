@@ -24,14 +24,16 @@ final class StepTimerCoordinator {
     }
 
     /// The timed step currently waiting (or ready) in a record, if any.
-    static func timedStep(steps: [Step], completions: [StepCompletion]) -> TimedStep? {
+    /// `startedAt` is when the record began: a timed step with no prerequisites
+    /// waits from then (failure 028).
+    static func timedStep(steps: [Step], completions: [StepCompletion], startedAt: Date? = nil) -> TimedStep? {
         let done = Dictionary(completions.map { ($0.stepId, $0.completedAt) }, uniquingKeysWith: { a, _ in a })
         return steps
             .sorted { $0.order < $1.order }
             .compactMap { step -> TimedStep? in
                 guard let seconds = step.minDurationSeconds, done[step.id] == nil,
                       step.prerequisiteStepIds.allSatisfy({ done[$0] != nil }) else { return nil }
-                let start = step.prerequisiteStepIds.compactMap { done[$0] }.max() ?? Date()
+                let start = step.prerequisiteStepIds.compactMap { done[$0] }.max() ?? startedAt ?? Date()
                 return TimedStep(step: step, start: start, end: start.addingTimeInterval(TimeInterval(seconds)))
             }
             .first
@@ -41,7 +43,8 @@ final class StepTimerCoordinator {
     func refresh(record: LabRecord, experiment: Experiment, lab: Lab?,
                  steps: [Step], completions: [StepCompletion]) {
         let current = Activity<StepTimerAttributes>.activities.filter { $0.attributes.recordId == record.id }
-        let timed = record.status == .draft ? Self.timedStep(steps: steps, completions: completions) : nil
+        let timed = record.status == .draft
+            ? Self.timedStep(steps: steps, completions: completions, startedAt: record.createdAt) : nil
 
         // End anything that no longer matches the waiting step.
         for activity in current where activity.attributes.stepId != timed?.step.id {

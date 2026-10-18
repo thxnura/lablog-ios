@@ -19,6 +19,9 @@ final class LabLogFlowUITests: XCTestCase {
         app = XCUIApplication()
         // Reach the Mac's backend through loopback, whatever its Wi-Fi address is today (failure 015).
         app.launchArguments = ["-UITestInMemoryStore", "-UITestStubCamera", "-LabLogServerHost", "127.0.0.1"]
+        // The shared test account has many records on the local server; only the
+        // sign-in test restores them (ADR-028), the others start from an empty phone.
+        if !name.contains("testSignInAndSyncToServer") { app.launchArguments.append("-UITestSkipRestore") }
         app.launch()
     }
 
@@ -133,35 +136,44 @@ final class LabLogFlowUITests: XCTestCase {
         }
     }
 
-    /// Sign in from the Sync tab. Throws XCTSkip when the build has no backend.
-    private func signIn(_ email: String, _ password: String) throws {
-        selectTab("Sync")
-        app.swipeUp() // the account card sits low; bring it above the tab bar
-        if element("sign-out").waitForExistence(timeout: 2) {
-            element("sign-out").tap()
-            app.swipeUp()
-        }
-        let signInButton = element("sign-in")
-        guard signInButton.waitForExistence(timeout: 5) else {
-            return XCTFail("No sign-in button. Screen:\n\(app.debugDescription)")
-        }
-        guard signInButton.isEnabled else { throw XCTSkip("No backend configured in this build") }
-        tap("sign-in", expecting: "email") // retries a dropped tap once (016)
+    /// Local demo accounts (the UI tests run against the local stack).
+    private static let student = (email: "student@lablog.test", password: "LabLog-Student-1")
+    private static let lecturer = (email: "lecturer@lablog.test", password: "LabLog-Lecturer-1")
+
+    /// The app opens on sign-in (ADR-027): sign in there. A build without a
+    /// backend has no sign-in screen; tests that need the server skip then.
+    private func signIn(_ account: (email: String, password: String) = student, required: Bool = false) throws {
         let emailField = element("email")
-        sleep(1) // sheet settles; the email field focuses itself
-        emailField.typeText(email)
+        let labsTab = app.tabBars.buttons["Labs"]
+        for _ in 0..<40 where !emailField.exists && !labsTab.exists { usleep(250_000) }
+        guard emailField.exists else {
+            if required { throw XCTSkip("No backend configured in this build") }
+            return
+        }
+        focus(emailField)
+        emailField.typeText(account.email)
         let passwordField = element("password")
-        passwordField.tap()
-        passwordField.typeText(password)
-        element("sign-in-submit").tap()
-        XCTAssertTrue(element("sign-out").waitForExistence(timeout: 15), "sign-in against Supabase Auth")
-        sleep(1) // let the sheet finish dismissing
+        focus(passwordField)
+        // Return submits (the keyboard can cover the button on a small screen).
+        passwordField.typeText(account.password + "\n")
+        let submit = element("sign-in-submit")
+        if !labsTab.waitForExistence(timeout: 10), submit.exists, submit.isHittable { submit.tap() }
+        waitOrDump(labsTab, timeout: 15, "signed in (sign-in against Supabase Auth)")
     }
 
+    /// Sign out from the Sync tab and confirm the app is back on sign-in.
     private func signOut() {
         selectTab("Sync")
         app.swipeUp()
-        if element("sign-out").waitForExistence(timeout: 3) { element("sign-out").tap() }
+        guard element("sign-out").waitForExistence(timeout: 3) else { return }
+        element("sign-out").tap()
+        let confirm = app.alerts.buttons["Sign Out"].firstMatch // only when work hasn't uploaded
+        if !confirm.waitForExistence(timeout: 2), !element("email").exists,
+           element("sign-out").exists, element("sign-out").isHittable {
+            element("sign-out").tap() // a dropped tap (017e)
+        }
+        if confirm.waitForExistence(timeout: 2) { confirm.tap() }
+        XCTAssertTrue(element("email").waitForExistence(timeout: 10), "back on the sign-in screen")
     }
 
     /// Wait until the Sync tab reports the outbox drained (tapping Sync now once if needed).
@@ -192,7 +204,8 @@ final class LabLogFlowUITests: XCTestCase {
     }
 
     /// Branching DAG experiment: locked step → reason, step guide, photo guard, submit.
-    func testTitrationFlow() {
+    func testTitrationFlow() throws {
+        try signIn()
         XCTAssertTrue(element("lab-CHEM201").waitForExistence(timeout: 10))
         snap("01-labs")
 
@@ -285,7 +298,8 @@ final class LabLogFlowUITests: XCTestCase {
     /// Timer guard: live row + pill, the interactive dial, the Dynamic Island.
     /// Retake a photo, note a step, discard the draft, then point the app at
     /// another server address and test it (Sync → Server).
-    func testEditingADraftAndServerAddress() {
+    func testEditingADraftAndServerAddress() throws {
+        try signIn()
         tap("lab-CHEM201", expecting: "experiment-Acid–Base Titration")
         tap("experiment-Acid–Base Titration", expecting: "start-record")
         tap("start-record", expecting: "step-1")
@@ -295,17 +309,12 @@ final class LabLogFlowUITests: XCTestCase {
         completeStep(4) // the circle opens the (stubbed) camera; the photo completes the step
         XCTAssertTrue(app.staticTexts["1 photo"].waitForExistence(timeout: 5))
 
-        // The toolbar's sync icon explains itself (not signed in here, so: sign in to sync),
-        // and its Sign in button opens the sign-in sheet right here (failure 020).
-        element("sync-indicator").tap()
-        XCTAssertTrue(element("sync-status-details").waitForExistence(timeout: 5))
+        // The toolbar's sync icon explains itself in one sentence.
+        tap("sync-indicator", expecting: "sync-status-details")
         sleep(1)
         snap("34-sync-status-popover")
-        tap("sign-in-popover", expecting: "email")
-        sleep(1)
-        snap("35-sign-in-from-popover")
-        app.navigationBars.buttons["Cancel"].firstMatch.tap()
-        XCTAssertTrue(element("email").waitForNonExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap() // dismiss
+        XCTAssertTrue(element("sync-status-details").waitForNonExistence(timeout: 5))
 
         // Retake from the guide; a completed step can't lose its photo.
         openGuide(4)
@@ -373,7 +382,8 @@ final class LabLogFlowUITests: XCTestCase {
         app.navigationBars["Server"].buttons["Cancel"].tap()
     }
 
-    func testPendulumTimer() {
+    func testPendulumTimer() throws {
+        try signIn()
         XCTAssertTrue(element("lab-PHYS101").waitForExistence(timeout: 10))
         tap("lab-PHYS101", expecting: "experiment-Simple Pendulum")
         tap("experiment-Simple Pendulum", expecting: "start-record")
@@ -424,11 +434,12 @@ final class LabLogFlowUITests: XCTestCase {
     /// Config/Secrets.xcconfig + `supabase start` + `npm run dev` in
     /// lablog-backend; skipped otherwise.
     func testSignInAndSyncToServer() throws {
-        selectTab("Sync")
-        app.swipeUp()
-        if element("sign-out").waitForExistence(timeout: 2) { element("sign-out").tap() }
-        snap("21-sync-signed-out")
-        try signIn("student@lablog.test", "LabLog-Student-1")
+        // The app opens on sign-in (ADR-027).
+        if element("email").waitForExistence(timeout: 15) {
+            sleep(1)
+            snap("21-sign-in")
+        }
+        try signIn(required: true)
 
         // Create work locally: two steps, one with a photo → record + upload.
         selectTab("Labs")
@@ -445,15 +456,86 @@ final class LabLogFlowUITests: XCTestCase {
         sleep(1)
         snap("23-synced-to-server")
         signOut()
+        sleep(1)
+        snap("22-signed-out")
 
-        // Signing out clears this iPhone: the synced record is on the server, not here.
+        // Signing out cleared this iPhone; signing back in restores the record from the server (ADR-028).
+        try signIn(required: true)
         selectTab("Records")
-        XCTAssertTrue(app.staticTexts["No lab records"].waitForExistence(timeout: 5), "records cleared on sign-out")
+        XCTAssertTrue(app.staticTexts["Simple Pendulum"].firstMatch.waitForExistence(timeout: 15), "record restored after sign-in")
+        sleep(1)
+        snap("12b-records-restored")
+    }
+
+    /// Lecturers manage labs instead of doing them (ADR-029): create a lab, add an
+    /// experiment with step rules, and choose the students who can do it.
+    func testLecturerCreatesALab() throws {
+        try signIn(Self.lecturer, required: true)
+        XCTAssertTrue(app.tabBars.buttons["Review"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.tabBars.buttons["Records"].exists, "lecturers don't do practicals")
+        selectTab("Labs")
+        sleep(1)
+        snap("37-manage-labs")
+
+        let code = "UI\(Int.random(in: 1000...9999))"
+        tap("new-lab", expecting: "lab-code")
+        focus(element("lab-code"))
+        element("lab-code").typeText(code)
+        focus(element("lab-name"))
+        element("lab-name").typeText("UI Test Lab")
+        element("create-lab").tap()
+        tap("manage-\(code)", expecting: "add-experiment")
+
+        tap("add-experiment", expecting: "experiment-title")
+        focus(element("experiment-title"))
+        element("experiment-title").typeText("Heating test\n") // Return puts the keyboard away
+        tap("add-step", expecting: "step-title")
+        focus(element("step-title"))
+        element("step-title").typeText("Weigh the sample")
+        element("step-done").tap()
+        tap("add-step", expecting: "step-title")
+        focus(element("step-title"))
+        element("step-title").typeText("Photograph the result\n")
+        let photo = app.switches["step-photo"]
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        element("after-1").tap()
+        sleep(1)
+        snap("38-step-rules")
+        element("step-done").tap()
+        XCTAssertTrue(element("draft-step-2").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("draft-step-2").label.contains("After 1"), "the step's rules are summarised")
+        sleep(1)
+        snap("39-new-experiment")
+        element("save-experiment").tap()
+        XCTAssertTrue(element("edit-Heating test").waitForExistence(timeout: 15), "the experiment is in the lab")
+
+        // Edit it: add a third step after step 2; the existing steps keep their ids.
+        tap("edit-Heating test", expecting: "draft-step-2")
+        tap("add-step", expecting: "step-title")
+        focus(element("step-title"))
+        element("step-title").typeText("Clean up")
+        element("after-2").tap()
+        element("step-done").tap()
+        XCTAssertTrue(element("draft-step-3").waitForExistence(timeout: 5))
+        element("save-experiment").tap()
+        // The row is already there behind the sheet, so wait for its label to change.
+        let saved = NSPredicate(format: "label CONTAINS %@", "3 steps")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: element("edit-Heating test"))],
+                                      timeout: 15), .completed, "the edit is saved")
+
+        tap("choose-students", expecting: "student-student2@lablog.test")
+        element("student-student2@lablog.test").tap()
+        element("save-students").tap()
+        XCTAssertTrue(app.staticTexts["student2@lablog.test"].waitForExistence(timeout: 10), "the student can now do the lab")
+        sleep(1)
+        snap("40-manage-lab")
+        goBack()
+        signOut()
     }
 
     /// Lecturer view: a student submits, it syncs, the lecturer reviews it.
     func testLecturerReview() throws {
-        try signIn("student@lablog.test", "LabLog-Student-1")
+        try signIn(required: true)
 
         selectTab("Labs")
         tap("lab-CHEM201", expecting: "experiment-Acid–Base Titration")
@@ -475,7 +557,7 @@ final class LabLogFlowUITests: XCTestCase {
         waitUntilSynced()
         signOut()
 
-        try signIn("lecturer@lablog.test", "LabLog-Lecturer-1")
+        try signIn(Self.lecturer, required: true)
         XCTAssertTrue(app.tabBars.buttons["Review"].waitForExistence(timeout: 5), "lecturer gets a Review tab")
         selectTab("Review")
         sleep(1)

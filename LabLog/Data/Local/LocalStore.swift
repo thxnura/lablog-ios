@@ -13,6 +13,9 @@ protocol LocalStore: AnyObject {
     func hasCatalog() -> Bool
     /// Upserts labs/experiments and replaces each given experiment's steps.
     func replaceCatalog(labs: [Lab], experiments: [Experiment], steps: [Step])
+    /// Drops labs (with their experiments and steps) the server no longer
+    /// lists for this account: a lab the student isn't enrolled in (ADR-029).
+    func keepOnlyLabs(_ ids: Set<UUID>)
     func labs() -> [Lab]
     func experiments(labId: UUID) -> [Experiment]
     func experiment(id: UUID) -> Experiment?
@@ -40,6 +43,15 @@ protocol LocalStore: AnyObject {
     /// record stays in the outbox as a tombstone until the delete syncs;
     /// otherwise, or with no server, it is removed at once. Drafts only.
     func discardDraft(id: UUID, sendTombstone: Bool)
+
+    // MARK: Restore
+    /// Adds the student's records from the server that this iPhone doesn't
+    /// have (signing in on a new phone, or after sign-out cleared this one),
+    /// as synced. A record already here, sent or not, is left as it is.
+    /// Returns the photos that still need downloading.
+    func restore(_ records: [SubmissionDTO]) -> [(attachmentId: UUID, url: URL)]
+    /// A restored photo has been downloaded and saved as `fileName`.
+    func setAttachmentFile(id: UUID, fileName: String)
 
     // MARK: Account
     /// Deletes every record with its steps, notes, observation and photos

@@ -68,7 +68,7 @@ final class RecordCaptureModel {
     /// The timed step currently waiting (drives the guide's timer dial).
     var timedStep: StepTimerCoordinator.TimedStep? {
         guard isEditable else { return nil }
-        return StepTimerCoordinator.timedStep(steps: steps, completions: completions)
+        return StepTimerCoordinator.timedStep(steps: steps, completions: completions, startedAt: record?.createdAt)
     }
 
     /// Complete a step from the step guide. Goes through the same constraint
@@ -110,6 +110,7 @@ final class RecordCaptureModel {
             attachedPhotoStepIds: photoStepIds,
             completionTimes: Dictionary(completions.map { ($0.stepId, $0.completedAt) }, uniquingKeysWith: { a, _ in a }),
             now: Date(),
+            recordStartedAt: record?.createdAt,
         )
         if !completions.contains(where: { $0.stepId == step.id }), engine.isUnlocked(step, context: context) {
             let completion = StepCompletion(id: UUID(), recordId: recordId, stepId: step.id, completedAt: Date(), note: nil)

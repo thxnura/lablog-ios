@@ -36,6 +36,13 @@ enum EvidenceStore {
         return fileName
     }
 
+    /// Saves a photo downloaded from the server (already a JPEG).
+    static func save(data: Data, id: UUID) throws -> String {
+        let fileName = "\(id.uuidString).jpg"
+        try data.write(to: directory.appendingPathComponent(fileName), options: .atomic)
+        return fileName
+    }
+
     static func data(for fileName: String) throws -> Data {
         let url = directory.appendingPathComponent(fileName)
         guard let data = FileManager.default.contents(atPath: url.path) else {

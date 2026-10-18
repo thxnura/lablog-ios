@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Connectivity, account, and outbox state, with manual controls. This is the
-/// demo screen: airplane mode → create record → reconnect → watch it drain.
+/// Account, sync and connection: the app's settings page, laid out like the
+/// system Settings app. The account sits on top, the sync status with its one
+/// action below it, then the details, and Sign Out alone at the bottom, where
+/// a destructive action belongs. Also the demo screen: airplane mode → create
+/// a record → reconnect → watch it drain.
 struct SyncStatusView: View {
     @Environment(AppModel.self) private var app
     @State private var failed: [(record: LabRecord, title: String)] = []
@@ -12,100 +15,23 @@ struct SyncStatusView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.xl) {
+                if let session = app.auth.session {
+                    AccountHeader(email: session.email ?? "Signed in", role: app.auth.role)
+                } else if !app.config.isBackendConfigured {
+                    OnDeviceHeader()
+                }
+
                 SyncHero(status: app.sync.status,
                          pendingCount: app.sync.pendingCount,
                          lastSyncedAt: app.sync.lastSyncedAt,
                          onSync: { Task { await app.sync.sync() } },
                          onSignIn: { showSignIn = true })
 
-                VStack(alignment: .leading, spacing: Theme.Space.m) {
-                    SectionHeader(title: "Connection")
-                    VStack(spacing: Theme.Space.m) {
-                        InfoRow(symbol: app.reachability.isOnline ? "wifi" : "wifi.slash", title: "Network",
-                                tint: app.reachability.isOnline ? Theme.success : Theme.caution) {
-                            Text(app.reachability.isOnline ? "Online" : "Offline")
-                        }
-                        Divider()
-                        Button {
-                            showServer = true
-                        } label: {
-                            InfoRow(symbol: "server.rack", title: "Server",
-                                    tint: app.config.isBackendConfigured ? .accentColor : .secondary) {
-                                HStack(spacing: 6) {
-                                    Text(app.serverHost ?? "Not configured")
-                                        .monospacedDigit()
-                                    if app.config.isBackendConfigured && !app.config.isHosted {
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        // A hosted backend has a fixed address; only the local stack's can change.
-                        .disabled(!app.config.isBackendConfigured || app.config.isHosted)
-                        .accessibilityIdentifier("server-row")
-                        .accessibilityHint(app.config.isHosted ? "" : "Change the server address")
-                        Divider()
-                        InfoRow(symbol: "books.vertical.fill", title: "Catalog", tint: .accentColor) {
-                            Text(app.sync.catalogRefreshedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened))" } ?? "Bundled copy")
-                        }
-                    }
-                    .card()
-                }
-
-                VStack(alignment: .leading, spacing: Theme.Space.m) {
-                    SectionHeader(title: "Account")
-                    VStack(spacing: Theme.Space.m) {
-                        if let session = app.auth.session {
-                            InfoRow(symbol: "person.crop.circle.fill", title: "Signed in", tint: Theme.success) {
-                                Text(session.email ?? "Student")
-                            }
-                            Divider()
-                            Button("Sign out", role: .destructive) {
-                                // Signing out clears this iPhone; warn if that would lose work.
-                                if app.sync.pendingCount > 0 { confirmSignOut = true } else { app.signOut() }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityIdentifier("sign-out")
-                            .alert("Sign out and delete unsent work?", isPresented: $confirmSignOut) {
-                                Button("Sign Out", role: .destructive) { app.signOut() }
-                                Button("Cancel", role: .cancel) {}
-                            } message: {
-                                Text(app.sync.pendingCount == 1
-                                     ? "1 record hasn't uploaded yet. Signing out removes your records from this iPhone, so it will be lost."
-                                     : "\(app.sync.pendingCount) records haven't uploaded yet. Signing out removes your records from this iPhone, so they will be lost.")
-                            }
-                        } else {
-                            InfoRow(symbol: "person.crop.circle.badge.questionmark", title: "Not signed in", tint: .secondary) {
-                                EmptyView()
-                            }
-                            Button {
-                                showSignIn = true
-                            } label: {
-                                PrimaryButtonLabel(title: "Sign in to sync", symbol: "person.fill")
-                            }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.capsule)
-                            .disabled(!app.config.isBackendConfigured)
-                            .accessibilityIdentifier("sign-in")
-                            if !app.config.isBackendConfigured {
-                                Text("This build has no server configured, so everything stays on the device. Add Config/Secrets.xcconfig to enable sync.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .card()
-                }
-
                 if !failed.isEmpty {
-                    VStack(alignment: .leading, spacing: Theme.Space.m) {
-                        SectionHeader(title: "Needs attention", trailing: "\(failed.count)")
-                        VStack(alignment: .leading, spacing: Theme.Space.m) {
-                            ForEach(failed, id: \.record.id) { item in
+                    SettingsSection(title: "Needs attention", trailing: "\(failed.count)") {
+                        ForEach(Array(failed.enumerated()), id: \.element.record.id) { index, item in
+                            if index > 0 { RowDivider() }
+                            VStack(alignment: .leading, spacing: 4) {
                                 InfoRow(symbol: "exclamationmark.icloud.fill", title: item.title, tint: Theme.danger) {
                                     EmptyView()
                                 }
@@ -115,20 +41,82 @@ struct SyncStatusView: View {
                                     .padding(.leading, 42)
                             }
                         }
-                        .card()
                     }
                 }
 
-                if let error = app.sync.catalogError {
-                    Label("Catalog refresh failed: \(error)", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(Theme.danger)
+                SettingsSection(title: "Connection") {
+                    InfoRow(symbol: app.reachability.isOnline ? "wifi" : "wifi.slash", title: "Network",
+                            tint: app.reachability.isOnline ? Theme.success : Theme.caution) {
+                        Text(app.reachability.isOnline ? "Online" : "Offline")
+                    }
+                    RowDivider()
+                    Button {
+                        showServer = true
+                    } label: {
+                        InfoRow(symbol: app.config.isHosted ? "cloud.fill" : "server.rack", title: "Server",
+                                tint: app.config.isBackendConfigured ? .accentColor : .secondary) {
+                            HStack(spacing: 6) {
+                                Text(app.serverHost ?? "Not configured")
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                if app.config.isBackendConfigured && !app.config.isHosted {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // A hosted backend has a fixed address; only the local stack's can change.
+                    .disabled(!app.config.isBackendConfigured || app.config.isHosted)
+                    .accessibilityIdentifier("server-row")
+                    .accessibilityHint(app.config.isHosted ? "" : "Change the server address")
+                    RowDivider()
+                    InfoRow(symbol: "books.vertical.fill", title: "Lab catalog", tint: .accentColor) {
+                        Text(app.sync.catalogRefreshedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened))" } ?? "Bundled copy")
+                    }
+                } footer: {
+                    if let error = app.sync.catalogError {
+                        Label("Catalog refresh failed: \(error)", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Theme.danger)
+                    } else {
+                        Text("Records and photos are saved on this iPhone first and upload when you're online.")
+                    }
                 }
 
-                Label("Records and photos are saved on this device first and upload automatically when you're back online. Retries back off from 2 to 32 seconds.",
-                      systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                SettingsSection(title: "About") {
+                    InfoRow(symbol: "info.circle.fill", title: "Version", tint: .secondary) {
+                        Text(Self.version)
+                    }
+                }
+
+                if app.auth.session != nil {
+                    Button(role: .destructive) {
+                        // Signing out clears this iPhone; warn if that would lose work.
+                        if app.sync.pendingCount > 0 { confirmSignOut = true } else { app.signOut() }
+                    } label: {
+                        Text("Sign Out")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Theme.Space.l)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressableCardStyle())
+                    .foregroundStyle(Theme.danger)
+                    .accessibilityIdentifier("sign-out")
+                    .alert("Sign out and delete unsent work?", isPresented: $confirmSignOut) {
+                        Button("Sign Out", role: .destructive) { app.signOut() }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(app.sync.pendingCount == 1
+                             ? "1 record hasn't uploaded yet. Signing out removes your records from this iPhone, so it will be lost."
+                             : "\(app.sync.pendingCount) records haven't uploaded yet. Signing out removes your records from this iPhone, so they will be lost.")
+                    }
+                }
             }
             .padding(.horizontal, Theme.Space.l)
             .padding(.bottom, Theme.Space.xl)
@@ -148,6 +136,96 @@ struct SyncStatusView: View {
                 .map { ($0, app.store.experiment(id: $0.experimentId)?.title ?? "Record") }
         }
     }
+
+    private static var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = info?["CFBundleVersion"] as? String ?? "1"
+        return "\(short) (\(build))"
+    }
+}
+
+/// Who is signed in: initials, email and role, like the top of Settings.
+private struct AccountHeader: View {
+    let email: String
+    let role: AuthService.Role
+
+    private var initials: String {
+        let name = email.split(separator: "@").first.map(String.init) ?? email
+        let parts = name.split(whereSeparator: { $0 == "." || $0 == "_" || $0 == "-" })
+        return parts.prefix(2).compactMap { $0.first.map { String($0).uppercased() } }.joined()
+    }
+
+    private var roleTitle: String { role == .lecturer ? "Lecturer" : "Student" }
+
+    var body: some View {
+        HStack(spacing: Theme.Space.l) {
+            // A plain monogram, like Contacts.
+            Text(initials)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 54, height: 54)
+                .background(Color(uiColor: .systemGray2), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(email)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(roleTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .card()
+        .padding(.top, Theme.Space.s)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Signed in as \(email), \(roleTitle)")
+        .accessibilityIdentifier("account-header")
+    }
+}
+
+/// A build without a server: say so plainly instead of an empty account.
+private struct OnDeviceHeader: View {
+    var body: some View {
+        InfoRow(symbol: "internaldrive.fill", title: "On-device mode", tint: .secondary) {
+            Text("No server in this build")
+        }
+        .card()
+        .padding(.top, Theme.Space.s)
+    }
+}
+
+/// A titled group of rows in one card, with an optional footnote: the
+/// system Settings pattern, drawn with the design system.
+private struct SettingsSection<Content: View, Footer: View>: View {
+    let title: String
+    var trailing: String?
+    @ViewBuilder var content: Content
+    @ViewBuilder var footer: Footer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionHeader(title: title, trailing: trailing)
+            VStack(spacing: Theme.Space.m) { content }
+                .card()
+            footer
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Theme.Space.s)
+        }
+    }
+}
+
+extension SettingsSection where Footer == EmptyView {
+    init(title: String, trailing: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(title: title, trailing: trailing, content: content, footer: { EmptyView() })
+    }
+}
+
+/// A hairline between rows, inset past the row icons like the system lists.
+private struct RowDivider: View {
+    var body: some View { Divider().padding(.leading, 42) }
 }
 
 /// Big, glanceable outbox status with the primary action.

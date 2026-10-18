@@ -65,6 +65,21 @@ final class SwiftDataStore: LocalStore {
         save()
     }
 
+    func keepOnlyLabs(_ ids: Set<UUID>) {
+        for lab in fetch(FetchDescriptor<LabEntity>()) where !ids.contains(lab.id) {
+            let labId = lab.id
+            for experiment in fetch(FetchDescriptor<ExperimentEntity>(predicate: #Predicate { $0.labId == labId })) {
+                let experimentId = experiment.id
+                for step in fetch(FetchDescriptor<StepEntity>(predicate: #Predicate { $0.experimentId == experimentId })) {
+                    context.delete(step)
+                }
+                context.delete(experiment)
+            }
+            context.delete(lab)
+        }
+        save()
+    }
+
     func labs() -> [Lab] {
         fetch(FetchDescriptor<LabEntity>(sortBy: [SortDescriptor(\.name)])).map(\.domain)
     }
@@ -202,6 +217,49 @@ final class SwiftDataStore: LocalStore {
         entity.revision += 1
         entity.syncState = .pendingUpdate
         entity.lastSyncError = nil
+        save()
+    }
+
+    func restore(_ records: [SubmissionDTO]) -> [(attachmentId: UUID, url: URL)] {
+        var downloads: [(attachmentId: UUID, url: URL)] = []
+        for remote in records {
+            if recordEntity(remote.id) == nil {
+                let entity = RecordEntity(id: remote.id, experimentId: remote.experimentId, createdAt: remote.createdAt)
+                entity.status = RecordStatus(rawValue: remote.status) ?? .draft
+                entity.latitude = remote.latitude
+                entity.longitude = remote.longitude
+                entity.submittedAt = remote.submittedAt
+                entity.syncState = .synced
+                context.insert(entity)
+                for c in remote.stepCompletions {
+                    context.insert(StepCompletionEntity(StepCompletion(id: c.id, recordId: remote.id, stepId: c.stepId,
+                                                                       completedAt: c.completedAt, note: c.note)))
+                }
+                for o in remote.observations {
+                    context.insert(ObservationEntity(id: o.id, recordId: remote.id, text: o.text))
+                }
+                for photo in remote.attachments {
+                    let attachment = Attachment(id: photo.id, recordId: remote.id, stepId: photo.stepId, localPath: nil,
+                                                storagePath: photo.storagePath, syncState: .synced)
+                    context.insert(AttachmentEntity(attachment, createdAt: remote.submittedAt ?? remote.createdAt))
+                    if let url = photo.url { downloads.append((photo.id, url)) }
+                }
+            } else {
+                // Already here: only fetch a photo whose file is missing.
+                for photo in remote.attachments {
+                    if let url = photo.url, let entity = attachmentEntity(photo.id), entity.localFileName == nil {
+                        downloads.append((photo.id, url))
+                    }
+                }
+            }
+        }
+        save()
+        return downloads
+    }
+
+    func setAttachmentFile(id: UUID, fileName: String) {
+        guard let entity = attachmentEntity(id) else { return }
+        entity.localFileName = fileName
         save()
     }
 

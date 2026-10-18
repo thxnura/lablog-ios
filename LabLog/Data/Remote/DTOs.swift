@@ -68,6 +68,7 @@ struct ExperimentDetailDTO: Codable {
 }
 
 /// `GET /api/records?experimentId=` — one submitted record, as a lecturer sees it.
+/// `GET /api/records/mine` returns the student's own records in the same shape.
 struct SubmissionDTO: Decodable, Identifiable, Hashable {
     struct Completion: Decodable, Hashable {
         let id: UUID

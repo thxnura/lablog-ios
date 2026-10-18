@@ -48,7 +48,8 @@ struct StepGuideSheet: View {
         let times = Dictionary(model.completions.map { ($0.stepId, $0.completedAt) }, uniquingKeysWith: { a, _ in a })
         let context = StepConstraintEngine.Context(completedStepIds: Set(times.keys),
                                                    attachedPhotoStepIds: model.photoStepIds,
-                                                   completionTimes: times, now: now)
+                                                   completionTimes: times, now: now,
+                                                   recordStartedAt: model.record?.createdAt)
         switch engine.lockReason(for: step, context: context) {
         case nil:
             return .available

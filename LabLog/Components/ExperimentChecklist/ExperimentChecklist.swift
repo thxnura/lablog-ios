@@ -10,6 +10,8 @@ import SwiftUI
 ///   - steps:           the steps to render (sorted by `order` for display)
 ///   - completions:     two-way bound completion state
 ///   - recordId:        the lab record new completions belong to
+///   - startedAt:       when the record began; a timed step with no
+///                      prerequisites counts its wait from here
 ///   - photoStepIds:    steps that currently have a photo attached
 ///   - photoThumbnails: optional evidence thumbnails shown on their step
 ///   - isEditable:      false for a submitted record (read-only, taps ignored)
@@ -34,6 +36,7 @@ struct ExperimentChecklist: View {
     let steps: [Step]
     @Binding var completions: [StepCompletion]
     let recordId: UUID
+    var startedAt: Date? = nil
     let photoStepIds: Set<UUID>
     var photoThumbnails: [UUID: UIImage] = [:]
     var isEditable: Bool = true
@@ -64,6 +67,7 @@ struct ExperimentChecklist: View {
             attachedPhotoStepIds: photoStepIds,
             completionTimes: times,
             now: now,
+            recordStartedAt: startedAt,
         )
     }
 

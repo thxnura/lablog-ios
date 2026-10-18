@@ -21,6 +21,8 @@ final class AppModel {
     let container: ModelContainer
     /// nil when the build has no backend configured.
     let api: LabLogAPI?
+    /// Lecturer-only lab management (ADR-029); the same client as `api`.
+    let manage: LabManagementAPI?
     let timers = StepTimerCoordinator()
 
     /// Set by a Live Activity / notification tap; RootView navigates to the
@@ -50,13 +52,15 @@ final class AppModel {
         let auth = AuthService(endpoint: endpoint)
         let reachability = Reachability()
 
-        let api: LabLogAPI? = config.apiBaseURL.map { _ in
+        let client = config.apiBaseURL.map { _ in
             APIClient(endpoint: endpoint, tokenProvider: { await auth.validAccessToken() })
         }
+        let api: LabLogAPI? = client
 
         self.endpoint = endpoint
         self.serverHost = endpoint.config.apiBaseURL?.host()
         self.api = api
+        self.manage = client
         self.container = container
         self.store = store
         self.auth = auth
@@ -120,6 +124,7 @@ final class AppModel {
             attachedPhotoStepIds: Set(store.attachments(recordId: recordId).compactMap(\.stepId)),
             completionTimes: Dictionary(completions.map { ($0.stepId, $0.completedAt) }, uniquingKeysWith: { a, _ in a }),
             now: Date(),
+            recordStartedAt: record.createdAt,
         )
         guard StepConstraintEngine().isUnlocked(step, context: context) else { return false }
 
@@ -174,9 +179,25 @@ final class AppModel {
     func refreshAndSync() async {
         await sync.refreshCatalog()
         await sync.sync()
+        // Push first, then bring back anything of this student's that the phone lacks.
+        if !Self.skipsRestore { await sync.pullRecords() }
     }
 
-    /// Something was written locally: update the badge and try to push it.
+    /// UI-test seam: the shared test account accumulates records on the local
+    /// server, so flow tests start from an empty phone instead of restoring them.
+    private static var skipsRestore: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-UITestSkipRestore")
+        #else
+        false
+        #endif
+    }
+
+    /// Sign-in is required before the app can be used, like a messaging app:
+    /// once signed in it works offline, and signing out returns to sign-in
+    /// (ADR-027). A build without a backend has no accounts, so no gate.
+    var requiresSignIn: Bool { config.isBackendConfigured && !auth.isSignedIn }
+
     /// Sign out and clear this iPhone of the student's work: records (synced or
     /// not), their photos, timers and notifications. The catalog stays, and the
     /// server keeps everything that synced. The caller warns first if records
@@ -188,6 +209,7 @@ final class AppModel {
         sync.refreshPendingCount()
     }
 
+    /// Something was written locally: update the badge and try to push it.
     func didChangeLocally() {
         sync.refreshPendingCount()
         Task { await sync.sync() }

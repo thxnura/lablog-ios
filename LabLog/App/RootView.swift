@@ -1,35 +1,61 @@
 import SwiftUI
 
-/// Three tabs, shallow stacks: a student mid-experiment is never more than
-/// three taps from the checklist, and sync never blocks the lab work.
+/// Sign-in first (ADR-027), then three tabs with shallow stacks: a student
+/// mid-experiment is never more than three taps from the checklist, and sync
+/// never blocks the lab work.
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @State private var tab: Tab = .labs
     @State private var labsPath = NavigationPath()
 
-    enum Tab: Hashable { case labs, records, review, sync }
+    enum Tab: Hashable { case labs, records, review, manage, sync }
 
     var body: some View {
+        Group {
+            if app.requiresSignIn {
+                SignInView(isWelcome: true)
+                    .transition(.opacity)
+            } else {
+                tabs
+                    .transition(.opacity)
+            }
+        }
+        .animation(Theme.spring, value: app.requiresSignIn)
+        // Back from sign-out: start the next person on their first tab, not where the last one left off.
+        .onChange(of: app.requiresSignIn) { _, gated in
+            if gated { labsPath = NavigationPath() }
+        }
+        .task(id: app.auth.role) { tab = app.auth.role == .lecturer ? .review : .labs }
+    }
+
+    private var tabs: some View {
         TabView(selection: $tab) {
-            NavigationStack(path: $labsPath) {
-                LabListView()
-            }
-            .tabItem { Label("Labs", systemImage: "flask.fill") }
-            .tag(Tab.labs)
-
-            NavigationStack {
-                RecordsListView()
-            }
-            .tabItem { Label("Records", systemImage: "list.bullet.clipboard.fill") }
-            .tag(Tab.records)
-
-            // Lecturers get a review tab (the API enforces the role as well).
             if app.auth.role == .lecturer {
+                // Lecturers don't do practicals: they review them and manage the labs
+                // (ADR-029). The API enforces the role as well.
                 NavigationStack {
                     ReviewView()
                 }
                 .tabItem { Label("Review", systemImage: "checkmark.rectangle.stack.fill") }
                 .tag(Tab.review)
+
+                NavigationStack {
+                    ManageLabsView()
+                }
+                .tabItem { Label("Labs", systemImage: "square.stack.3d.up.fill") }
+                .tag(Tab.manage)
+            } else {
+                NavigationStack(path: $labsPath) {
+                    LabListView()
+                }
+                .tabItem { Label("Labs", systemImage: "flask.fill") }
+                .tag(Tab.labs)
+
+                NavigationStack {
+                    RecordsListView()
+                }
+                .tabItem { Label("Records", systemImage: "list.bullet.clipboard.fill") }
+                .tag(Tab.records)
             }
 
             NavigationStack {

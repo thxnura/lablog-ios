@@ -41,6 +41,19 @@ final class SwiftDataStoreTests: XCTestCase {
         XCTAssertEqual(store.steps(experimentId: experimentId).count, 4)
     }
 
+    /// Restoring twice adds a server record once, and never touches a local one.
+    func testRestoreIsIdempotentAndKeepsLocalRecords() {
+        let remoteId = UUID()
+        let remote = SubmissionDTO(id: remoteId, studentId: UUID(), studentEmail: nil, experimentId: experimentId,
+                                   status: "draft", latitude: nil, longitude: nil, createdAt: Date(), submittedAt: nil,
+                                   stepCompletions: [], observations: [], attachments: [])
+        XCTAssertTrue(store.restore([remote]).isEmpty, "no photos to fetch")
+        _ = store.restore([remote])
+        XCTAssertEqual(store.records().filter { $0.id == remoteId }.count, 1)
+        XCTAssertEqual(store.record(id: remoteId)?.syncState, .synced)
+        XCTAssertTrue(store.pendingRecords().isEmpty)
+    }
+
     func testNewRecordIsInOutbox() {
         let record = store.createRecord(experimentId: experimentId)
         XCTAssertEqual(record.syncState, .pendingCreate)
@@ -198,5 +211,13 @@ final class SwiftDataStoreTests: XCTestCase {
         store.replaceCatalog(labs: [CatalogSeed.chemistryLab], experiments: [CatalogSeed.recrystallisation], steps: [newStep])
         XCTAssertEqual(store.steps(experimentId: experimentId).map(\.title), ["Only step"])
         XCTAssertEqual(store.labs().count, 2, "labs are upserted, not wiped")
+    }
+
+    /// A refresh keeps only the labs the server lists for this account (ADR-029).
+    func testKeepOnlyLabsDropsUnlistedLabsWithTheirExperiments() {
+        store.keepOnlyLabs([CatalogSeed.chemistryLab.id])
+        XCTAssertEqual(store.labs().map(\.id), [CatalogSeed.chemistryLab.id])
+        XCTAssertNotNil(store.experiment(id: experimentId), "chemistry's experiments stay")
+        XCTAssertTrue(store.experiments(labId: CatalogSeed.physicsLab.id).isEmpty)
     }
 }

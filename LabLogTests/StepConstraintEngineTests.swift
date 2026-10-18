@@ -50,6 +50,21 @@ final class StepConstraintEngineTests: XCTestCase {
     }
 
     /// A step with two parents (a join in the DAG) needs BOTH.
+    /// A lecturer can give the first step a wait (ADR-029). With no
+    /// prerequisite, it counts from when the record was started; anchoring on
+    /// "now" restarted it on every check, so it never ran down (failure 028).
+    func testTimedStepWithoutPrerequisitesCountsFromRecordStart() {
+        let heat = step(1, timer: 60)
+        let started = Date()
+        func remaining(after seconds: TimeInterval) -> StepConstraintEngine.LockReason? {
+            engine.lockReason(for: heat, context: .init(completedStepIds: [], attachedPhotoStepIds: [], completionTimes: [:],
+                                                        now: started.addingTimeInterval(seconds), recordStartedAt: started))
+        }
+        XCTAssertEqual(remaining(after: 10), .timerPending(secondsRemaining: 50))
+        XCTAssertEqual(remaining(after: 59), .timerPending(secondsRemaining: 1))
+        XCTAssertNil(remaining(after: 60), "unlocked once the wait is over")
+    }
+
     func testMultiplePrerequisitesMustAllBeComplete() {
         let a = step(1), b = step(2)
         let join = step(3, prereqs: [a.id, b.id])

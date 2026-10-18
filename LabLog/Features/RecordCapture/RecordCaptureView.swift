@@ -52,6 +52,7 @@ private struct RecordCaptureContent: View {
                     steps: model.steps,
                     completions: $model.completions,
                     recordId: model.recordId,
+                    startedAt: model.record?.createdAt,
                     photoStepIds: model.photoStepIds,
                     photoThumbnails: thumbnails,
                     isEditable: model.isEditable,
