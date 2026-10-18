@@ -79,12 +79,21 @@ final class LabLogFlowUITests: XCTestCase {
         XCTFail("Step \(order) did not complete")
     }
 
-    /// Tap a text field and wait for the keyboard before typing: on a loaded
-    /// simulator the first tap can land before the field takes focus (017).
+    /// Make sure this field has the keyboard before typing, tapping it if needed:
+    /// on a loaded simulator the first tap can land before the field takes focus
+    /// (017), and a keyboard on screen may still belong to the previous field (032).
     private func focus(_ field: XCUIElement) {
-        field.tap()
-        if !app.keyboards.firstMatch.waitForExistence(timeout: 4) { field.tap() }
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4), "keyboard never appeared")
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<3 {
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 1) == .completed {
+                return
+            }
+            field.tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 3) == .completed {
+                return
+            }
+        }
+        XCTFail("\(field.identifier) never took the keyboard focus")
     }
 
     /// Open the step guide by tapping the step card near its top.
@@ -162,7 +171,10 @@ final class LabLogFlowUITests: XCTestCase {
             return
         }
         focus(emailField)
-        emailField.typeText(account.email)
+        // Return moves on to the password field (the screen's onSubmit). Tapping it
+        // instead can hit the Passwords app's AutoFill bubble, which covers the
+        // field on an iPhone with a saved LabLog password (032).
+        emailField.typeText(account.email + "\n")
         let passwordField = element("password")
         focus(passwordField)
         // Return submits (the keyboard can cover the button on a small screen).
@@ -170,6 +182,10 @@ final class LabLogFlowUITests: XCTestCase {
         let submit = element("sign-in-submit")
         if !labsTab.waitForExistence(timeout: 10), submit.exists, submit.isHittable { submit.tap() }
         waitOrDump(labsTab, timeout: 15, "signed in (sign-in against Supabase Auth)")
+        // A real iPhone then offers to save the password in the Passwords app, in a
+        // sheet over the app that swallows every tap until it's answered (033).
+        let notNow = app.buttons["Not Now"]
+        if notNow.waitForExistence(timeout: 3) { notNow.tap() }
     }
 
     /// Sign out from the Sync tab and confirm the app is back on sign-in.

@@ -45,6 +45,8 @@ Failure 013 has no image (see the entry).
 | [029](#failure-029) | 18 Oct | Docker Desktop quit again: the lecturer test got 401 saving an experiment |
 | [030](#failure-030) | 18 Oct | The lecturer test checked an edited experiment before the save had finished |
 | [031](#failure-031) | 18 Oct | The new hosted test script stopped at once: `read-only variable: status` |
+| [032](#failure-032) | 18 Oct | On my real iPhone, sign-in in the UI tests failed: the Passwords AutoFill bubble covered the password field |
+| [033](#failure-033) | 18 Oct | On my real iPhone, every tap after sign-in was swallowed by iOS's "Save Password?" sheet |
 
 ## Failures
 
@@ -486,6 +488,35 @@ That new test step failed first: `XCTAssertTrue failed - sign-in-popover not fou
 **Cause:** The script is a zsh script, and in zsh `status` is a built-in, read-only name for the last exit code (like `$?`). Assigning `status=0` stopped the script before `xcodebuild` ran.
 **Fix:** The variable is now `result`. The next run passed all 63 unit tests and all 6 UI tests against the hosted backend, then removed the 3 records, 3 photo files and 1 lab the test accounts had created.
 
+### Failure 032
+**On my real iPhone, sign-in in the UI tests failed: the Passwords AutoFill bubble covered the password field** · 18 Oct 2026
+
+**Type:** UI test on a physical device (no app change)
+**What I was doing:** Running the UI tests on my iPhone 17 Pro for the first time (until now they ran on the simulator), against the hosted backend. All 63 unit tests passed on the phone.
+**Error / output:**
+    Tap "password" Any
+    Type '<password>…' into "password"
+    Failed: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: SecureTextField, … identifier: 'password'
+    LabLogFlowUITests.swift:169: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : Failed to synthesize event: Neither element nor any descendant has keyboard focus.
+    # the hierarchy: the email field still "Keyboard Focused"; the same failure in testLecturerCreatesALab
+**Screenshot:** ![032](screenshots/032-autofill-bubble-on-iphone.png) (log: `032-autofill-bubble-on-iphone.log`), and frames from the test's screen recording on the phone: ![032b](screenshots/032b-autofill-bubble-frames.png)
+**Cause:** My phone has a LabLog password saved in the Passwords app, so iOS shows its AutoFill bubble ("lecturer@lablog.test, password for this app") right over the password field. The test's tap on the field landed on the bubble, so the keyboard stayed with the email field, and typing the password had nowhere to go. The simulator has no saved passwords, so this never happened there. The test helper only checked that *a* keyboard was showing, which it was: the email field's.
+**Fix:** The test now presses Return after the email, which moves to the password field through the screen's own `onSubmit` (as a person would), and `focus(_:)` now waits for that specific field to have the keyboard (`hasKeyboardFocus`), tapping again only if it doesn't. The app needed no change: the bubble is iOS offering the saved password, and a person can tap it or dismiss it. I stopped the run after the second identical failure and re-ran it with the fix; sign-in then worked on the phone, and the run met 033.
+
+### Failure 033
+**On my real iPhone, every tap after sign-in was swallowed by iOS's "Save Password?" sheet** · 18 Oct 2026
+
+**Type:** UI test on a physical device (no app change)
+**What I was doing:** The second run on my iPhone, with the fix for 032: sign-in now worked.
+**Error / output:**
+    Tap "lab-CHEM201" Any
+    Waiting 6.0s for "experiment-Acid–Base Titration" Any to exist   (three times)
+    LabLogFlowUITests.swift:133: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : failed - experiment-Acid–Base Titration not found.
+    # the app's screen tree: still on Labs, with Sheet 'Save Password?' (Not Now, Save) in a window over it
+**Screenshot:** ![033](screenshots/033-save-password-sheet.png) (log: `033-save-password-sheet.log`), and frames from the phone's screen recording: ![033b](screenshots/033b-save-password-frames.png)
+**Cause:** After a successful sign-in, iOS offers to save the password in the Passwords app (the fields are marked as a username and a password, so AutoFill works). Its sheet sits over the app and takes every tap until it is answered, so the three taps on the lab card never reached it. The simulator has no Passwords app, so it never showed this.
+**Fix:** After signing in, the test taps **Not Now** if the sheet appears within 3 seconds. The app is unchanged: for a person this is the normal, useful iOS offer, and it is what lets the AutoFill of 032 work. The third run on my iPhone passed all 63 unit tests and all 6 UI tests against the hosted backend, then removed the 3 records, 3 photo files and 1 lab the test accounts had created.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -541,6 +572,8 @@ correction (also in the report, §9.3).
 | 46 | "did u update the doc ss and markdoen and all" | An audit of the shared doc, screenshots and Markdown. Fixed: four doc sections still showing old screens, the doc's summary, the iOS README ("sign in from the Sync tab", no lecturer figure), the screenshots README and the viva notes; README changes pushed | Worked (gaps found and fixed) |
 | 47 | "update the report as well" | A full read of the report against the app. Updated: lecturer lab authoring in the idea, the read path, the API table, the constraint chapter (a wait anchored on the record's start; validation when an experiment is written), the checklist's `startedAt`, the lecturer components, the failure and test notes, my own role, limitations; PDF and Word rebuilt | Worked |
 | 48 | "ok what are the more gaps have, also do not use docker, us the vercel link for testog and make finalzie" | A gap check against the brief; every test moved to the hosted backend (ADR-030): test-only accounts, the backend suite against the deployed API, the simulator and UI tests on the hosted build, a clean-up before and after each run; docs, report and both repos finalised | Worked (failure 031, in the new script) |
+| 49 | "did u test all the steps screen in iphone and backend", then "check now" | An honest answer: the UI tests had run on the simulator against the hosted backend, not on my iPhone; then all the tests run on my iPhone 17 Pro against the hosted backend. Two iPhone-only test failures from the Passwords app (032, 033) fixed in the tests; the third run passed 63 unit and 6 UI tests on the phone | Worked (failures 032 and 033) |
+| 50 | "what is the test frameword we used" | XCTest for the 63 unit tests, XCUITest for the 6 UI tests, and Node's built-in test runner (`node:test`, `node:assert`, through `tsx`) for the 20 backend tests; no third-party test framework | Worked |
 
 ### Notes on selected prompts
 

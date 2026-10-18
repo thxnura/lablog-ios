@@ -1,0 +1,23 @@
+# 18 Oct, 18:26: the first UI test run on my real iPhone 17 Pro, against the hosted backend (excerpt)
+
+	 Executed 63 tests, with 0 failures (0 unexpected) in 0.230 (0.239) seconds
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' started.
+    t =     3.45s Tap "email" Any
+    t =     4.13s Waiting 4.0s for Keyboard (First Match) to exist
+    t =     5.22s Waiting 4.0s for Keyboard (First Match) to exist
+    t =     6.31s Type 'test.student@lablo...' into "email" TextField
+    t =     7.11s Tap "password" Any
+    t =     7.60s Waiting 4.0s for Keyboard (First Match) to exist
+    t =     8.69s Waiting 4.0s for Keyboard (First Match) to exist
+    t =     9.76s Type '<password>
+    t =    11.24s         Failed: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: SecureTextField, {{40.0, 431.3}, {286.0, 19.0}}, identifier: 'password', placeholderValue: 'Enter your password'
+    t =    12.25s     Retrying `Type '<password>
+    t =    13.74s             Failed: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: SecureTextField, {{40.0, 431.3}, {286.0, 19.0}}, identifier: 'password', placeholderValue: 'Enter your password'
+    t =    14.75s     Retrying `Type '<password>
+    t =    16.30s             Failed: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: SecureTextField, {{40.0, 431.3}, {286.0, 19.0}}, identifier: 'password', placeholderValue: 'Enter your password'
+LabLogUITests/LabLogFlowUITests.swift:169: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : Failed to synthesize event: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: SecureTextField, {{40.0, 431.3}, {286.0, 19.0}}, identifier: 'password', placeholderValue: 'Enter your password'
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (16.469 seconds).
+# the UI hierarchy at the failure: the email field still has the keyboard
+TextField, 0x112965040, {{40.0, 340.7}, {322.0, 20.3}}, identifier: 'email', placeholderValue: 'name@university.edu', value: test.student@lablo..., Keyboard Focused
+# the same failure in testLecturerCreatesALab; the screen recording shows the Passwords app's
+# AutoFill bubble (lecturer@lablog.test, password for this app) covering the password field
