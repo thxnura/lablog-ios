@@ -22,7 +22,9 @@ final class LabLogFlowUITests: XCTestCase {
         app.launchArguments = ["-UITestInMemoryStore", "-UITestStubCamera", "-LabLogServerHost", "127.0.0.1"]
         // The test account keeps records from earlier tests; only the sign-in test
         // restores them (ADR-028), the others start from an empty phone.
-        if !name.contains("testSignInAndSyncToServer") { app.launchArguments.append("-UITestSkipRestore") }
+        if !name.contains("testSignInAndSyncToServer") && !name.contains("testRealAccount") {
+            app.launchArguments.append("-UITestSkipRestore")
+        }
         app.launch()
     }
 
@@ -499,6 +501,38 @@ final class LabLogFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Simple Pendulum"].firstMatch.waitForExistence(timeout: 15), "record restored after sign-in")
         sleep(1)
         snap("12b-records-restored")
+    }
+
+    /// A read-only check of real accounts, run on demand (LABLOG_CHECK_* variables;
+    /// skipped otherwise): signing in brings the first account's records back from
+    /// the server (ADR-028), and after signing out none of them is left for the
+    /// next person to see (ADR-026). Nothing is written to the server.
+    func testRealAccountRestoresAndSignOutClears() throws {
+        let env = Self.environment
+        guard let email = env["LABLOG_CHECK_EMAIL"], let password = env["LABLOG_CHECK_PASSWORD"],
+              let submitted = env["LABLOG_CHECK_SUBMITTED"], let drafts = env["LABLOG_CHECK_DRAFTS"],
+              let otherEmail = env["LABLOG_CHECK_EMAIL2"], let otherPassword = env["LABLOG_CHECK_PASSWORD2"] else {
+            throw XCTSkip("Set the LABLOG_CHECK_* variables to check real accounts")
+        }
+        try signIn((email, password), required: true)
+        // The home stats count what is on this phone: the restore has to arrive.
+        waitOrDump(app.staticTexts["\(submitted), Submitted"], timeout: 45, "\(submitted) submitted records restored")
+        XCTAssertTrue(app.staticTexts["\(drafts), In progress"].exists, "\(drafts) draft(s) restored")
+        sleep(2)
+        snap("41-real-account-restored")
+        selectTab("Records")
+        sleep(2)
+        snap("42-real-account-records")
+        signOut()
+
+        // Someone else signs in on the same phone: nothing of the first account remains.
+        try signIn((otherEmail, otherPassword), required: true)
+        XCTAssertTrue(app.staticTexts["0, Submitted"].waitForExistence(timeout: 15), "no submitted records left behind")
+        XCTAssertTrue(app.staticTexts["0, In progress"].exists, "no drafts left behind")
+        selectTab("Records")
+        XCTAssertTrue(app.staticTexts["No lab records"].waitForExistence(timeout: 10), "Records is empty for the next person")
+        snap("43-next-account-empty")
+        signOut()
     }
 
     /// Lecturers manage labs instead of doing them (ADR-029): create a lab, add an

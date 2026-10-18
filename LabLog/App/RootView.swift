@@ -25,7 +25,9 @@ struct RootView: View {
         .onChange(of: app.requiresSignIn) { _, gated in
             if gated { labsPath = NavigationPath() }
         }
-        .task(id: app.auth.role) { tab = app.auth.role == .lecturer ? .review : .labs }
+        // Keyed on the account, not just the role: two students in a row are the same
+        // role, and the second one used to land on the first one's last tab (034).
+        .task(id: app.auth.session?.email) { tab = app.auth.role == .lecturer ? .review : .labs }
     }
 
     private var tabs: some View {

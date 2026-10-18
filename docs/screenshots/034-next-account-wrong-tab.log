@@ -1,0 +1,23 @@
+# 18 Oct, 18:48: read-only check of the real demo accounts on my iPhone (excerpt): sign in, sign out, the next person signs in
+
+Test Case '-[LabLogUITests.LabLogFlowUITests testRealAccountRestoresAndSignOutClears]' started.
+    t =     7.51s Tap "email" TextField
+    t =     9.14s Type 'student@lablog.tes...' into "email" TextField
+    t =    11.00s Tap "password" SecureTextField
+    t =    13.71s Waiting 10.0s for "Labs" Button to exist
+    t =    14.86s Waiting 15.0s for "Labs" Button to exist
+    t =    19.25s Waiting 45.0s for "10, Submitted" StaticText to exist
+    t =    23.80s Tap "Records" Button
+    t =    30.07s Tap "Sync" Button
+    t =    35.34s Tap "sign-out" Any
+    t =    40.13s Waiting 10.0s for "email" Any to exist
+    t =    43.96s Tap "email" TextField
+    t =    45.87s Type 'student2@lablog.te...' into "email" TextField
+    t =    47.75s Tap "password" SecureTextField
+    t =    50.48s Waiting 10.0s for "Labs" Button to exist
+    t =    51.58s Waiting 15.0s for "Labs" Button to exist
+    t =    53.84s Tap "Not Now" Button
+    t =    54.35s Waiting 15.0s for "0, Submitted" StaticText to exist
+LabLogUITests/LabLogFlowUITests.swift:530: error: -[LabLogUITests.LabLogFlowUITests testRealAccountRestoresAndSignOutClears] : XCTAssertTrue failed - no submitted records left behind
+Test Case '-[LabLogUITests.LabLogFlowUITests testRealAccountRestoresAndSignOutClears]' failed (69.736 seconds).
+# the screen recording: student2 signed in on the Sync tab, the last tab the first student had open

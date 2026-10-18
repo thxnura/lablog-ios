@@ -47,6 +47,7 @@ Failure 013 has no image (see the entry).
 | [031](#failure-031) | 18 Oct | The new hosted test script stopped at once: `read-only variable: status` |
 | [032](#failure-032) | 18 Oct | On my real iPhone, sign-in in the UI tests failed: the Passwords AutoFill bubble covered the password field |
 | [033](#failure-033) | 18 Oct | On my real iPhone, every tap after sign-in was swallowed by iOS's "Save Password?" sheet |
+| [034](#failure-034) | 18 Oct | After one student signed out, the next one landed on the previous student's last tab (UX) |
 
 ## Failures
 
@@ -517,6 +518,21 @@ That new test step failed first: `XCTAssertTrue failed - sign-in-popover not fou
 **Cause:** After a successful sign-in, iOS offers to save the password in the Passwords app (the fields are marked as a username and a password, so AutoFill works). Its sheet sits over the app and takes every tap until it is answered, so the three taps on the lab card never reached it. The simulator has no Passwords app, so it never showed this.
 **Fix:** After signing in, the test taps **Not Now** if the sheet appears within 3 seconds. The app is unchanged: for a person this is the normal, useful iOS offer, and it is what lets the AutoFill of 032 work. The third run on my iPhone passed all 63 unit tests and all 6 UI tests against the hosted backend, then removed the 3 records, 3 photo files and 1 lab the test accounts had created.
 
+### Failure 034
+**After one student signed out, the next one landed on the previous student's last tab** · 18 Oct 2026
+
+**Type:** UX bug, found by a new read-only check on my real iPhone
+**What I was doing:** Checking sign-in, sign-out and the old data with the real demo accounts on my iPhone: the demo student signs in and their records come back from the server; they sign out; student2 signs in on the same phone and must see none of it. The server was audited before and after (unchanged: the demo student's 11 records, 10 submitted and 1 draft, with 46 step completions and 11 photos; 0 records for every test account; no stray photo files).
+**Error / output:**
+    Waiting 45.0s for "10, Submitted" StaticText to exist      # passed: the records were restored
+    Tap "sign-out" Any
+    Type 'student2@lablog.te...' into "email" TextField
+    Waiting 15.0s for "0, Submitted" StaticText to exist
+    LabLogFlowUITests.swift:530: error: -[LabLogUITests.LabLogFlowUITests testRealAccountRestoresAndSignOutClears] : XCTAssertTrue failed - no submitted records left behind
+**Screenshot:** ![034](screenshots/034-next-account-wrong-tab.png) (log: `034-next-account-wrong-tab.log`), and frames from the phone's recording: ![034b](screenshots/034b-next-account-frames.png)
+**Cause:** Nothing had leaked: the recording shows student2 on the **Sync** tab with "Everything is synced, nothing waiting". But Sync was the tab the first student had open when they signed out, and the home stats the check looks for are on Labs. The root view picks the starting tab when the *role* changes (lecturers start on Review), and two students in a row have the same role, so the tab was never reset. The comment above that code already said the next person should start on their first tab; only the navigation stack was reset.
+**Fix:** The starting tab is now chosen whenever the signed-in *account* changes. The rerun on my iPhone passed: the demo student's 10 submitted records and 1 draft came back with their photos, sign-out returned to sign-in, and student2 landed on Labs with 0 records ("No lab records"). The server was unchanged afterwards. This check (`testRealAccountRestoresAndSignOutClears`) only runs when the `LABLOG_CHECK_*` variables are set, and writes nothing.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -574,6 +590,7 @@ correction (also in the report, §9.3).
 | 48 | "ok what are the more gaps have, also do not use docker, us the vercel link for testog and make finalzie" | A gap check against the brief; every test moved to the hosted backend (ADR-030): test-only accounts, the backend suite against the deployed API, the simulator and UI tests on the hosted build, a clean-up before and after each run; docs, report and both repos finalised | Worked (failure 031, in the new script) |
 | 49 | "did u test all the steps screen in iphone and backend", then "check now" | An honest answer: the UI tests had run on the simulator against the hosted backend, not on my iPhone; then all the tests run on my iPhone 17 Pro against the hosted backend. Two iPhone-only test failures from the Passwords app (032, 033) fixed in the tests; the third run passed 63 unit and 6 UI tests on the phone | Worked (failures 032 and 033) |
 | 50 | "what is the test frameword we used" | XCTest for the 63 unit tests, XCUITest for the 6 UI tests, and Node's built-in test runner (`node:test`, `node:assert`, through `tsx`) for the 20 backend tests; no third-party test framework | Worked |
+| 51 | "check signin and signout and check old data and remaining" | A read-only audit of the hosted project (accounts, each account's records and photos, labs, stray files: all clean), the restore checked through the deployed API, and a new on-demand UI check on my iPhone with the real demo accounts: records restored, sign-out, the next student sees nothing. It found a UX bug (034), fixed; the rerun passed and the server was unchanged | Worked (failure 034) |
 
 ### Notes on selected prompts
 
