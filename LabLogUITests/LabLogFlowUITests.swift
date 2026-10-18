@@ -17,10 +17,11 @@ final class LabLogFlowUITests: XCTestCase {
         // stamp come back "Not available". Pin it so submit is deterministic.
         XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 6.9271, longitude: 79.8612))
         app = XCUIApplication()
-        // Reach the Mac's backend through loopback, whatever its Wi-Fi address is today (failure 015).
+        // A local build reaches the Mac's backend through loopback, whatever its Wi-Fi
+        // address is today (failure 015); a hosted build ignores the setting.
         app.launchArguments = ["-UITestInMemoryStore", "-UITestStubCamera", "-LabLogServerHost", "127.0.0.1"]
-        // The shared test account has many records on the local server; only the
-        // sign-in test restores them (ADR-028), the others start from an empty phone.
+        // The test account keeps records from earlier tests; only the sign-in test
+        // restores them (ADR-028), the others start from an empty phone.
         if !name.contains("testSignInAndSyncToServer") { app.launchArguments.append("-UITestSkipRestore") }
         app.launch()
     }
@@ -137,8 +138,18 @@ final class LabLogFlowUITests: XCTestCase {
     }
 
     /// Local demo accounts (the UI tests run against the local stack).
-    private static let student = (email: "student@lablog.test", password: "LabLog-Student-1")
-    private static let lecturer = (email: "lecturer@lablog.test", password: "LabLog-Lecturer-1")
+    /// Accounts: the local stack's demo accounts, or, against the hosted backend,
+    /// test-only accounts passed in by `scripts/test-hosted.sh` (its
+    /// TEST_RUNNER_LABLOG_TEST_* variables arrive here as LABLOG_TEST_*), so a
+    /// test run never touches the demo accounts' data (ADR-030).
+    private static let environment = ProcessInfo.processInfo.environment
+    private static let isHosted = environment["LABLOG_TEST_HOSTED"] == "1"
+    private static func account(_ key: String, _ email: String, _ password: String) -> (email: String, password: String) {
+        (environment[key] ?? email, environment["\(key)_PASSWORD"] ?? password)
+    }
+    private static let student = account("LABLOG_TEST_STUDENT", "student@lablog.test", "LabLog-Student-1")
+    private static let student2 = account("LABLOG_TEST_STUDENT2", "student2@lablog.test", "LabLog-Student-2")
+    private static let lecturer = account("LABLOG_TEST_LECTURER", "lecturer@lablog.test", "LabLog-Lecturer-1")
 
     /// The app opens on sign-in (ADR-027): sign in there. A build without a
     /// backend has no sign-in screen; tests that need the server skip then.
@@ -361,7 +372,14 @@ final class LabLogFlowUITests: XCTestCase {
         selectTab("Sync")
         let row = element("server-row")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        guard row.isEnabled else { return } // build without a backend
+        guard row.isEnabled else {
+            // A hosted build has one fixed address: the row shows it and opens nothing (ADR-025).
+            if Self.isHosted {
+                XCTAssertTrue(row.label.contains("vercel.app"), "the hosted server is shown")
+                snap("32b-sync-server-hosted")
+            }
+            return // or a build without a backend
+        }
         snap("32a-sync-server-row")
         row.tap()
         let field = element("server-host")
@@ -523,10 +541,10 @@ final class LabLogFlowUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: element("edit-Heating test"))],
                                       timeout: 15), .completed, "the edit is saved")
 
-        tap("choose-students", expecting: "student-student2@lablog.test")
-        element("student-student2@lablog.test").tap()
+        tap("choose-students", expecting: "student-\(Self.student2.email)")
+        element("student-\(Self.student2.email)").tap()
         element("save-students").tap()
-        XCTAssertTrue(app.staticTexts["student2@lablog.test"].waitForExistence(timeout: 10), "the student can now do the lab")
+        XCTAssertTrue(app.staticTexts[Self.student2.email].waitForExistence(timeout: 10), "the student can now do the lab")
         sleep(1)
         snap("40-manage-lab")
         goBack()
@@ -562,11 +580,11 @@ final class LabLogFlowUITests: XCTestCase {
         selectTab("Review")
         sleep(1)
         snap("24-review-home")
-        tap("review-Acid–Base Titration", expecting: "submission-student@lablog.test")
+        tap("review-Acid–Base Titration", expecting: "submission-\(Self.student.email)")
         sleep(1)
         snap("25-submissions")
         // The newest submission; retry a tap dropped while the list settles (017).
-        let submission = element("submission-student@lablog.test")
+        let submission = element("submission-\(Self.student.email)")
         submission.tap()
         if !app.staticTexts["Procedure"].waitForExistence(timeout: 6), submission.isHittable { submission.tap() }
         waitOrDump(app.staticTexts["Procedure"], timeout: 10, "submission detail")

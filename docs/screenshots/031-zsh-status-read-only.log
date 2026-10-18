@@ -1,0 +1,9 @@
+# 18 Oct, 17:48: the first run of the new hosted test script (ADR-030)
+
+$ RESULT_BUNDLE="$SP/build/h1.xcresult" DESTINATION="platform=iOS Simulator,id=A62B197F-733A-4E0E-A2FB-E64E54BD1F14" scripts/test-hosted.sh -derivedDataPath "$SP/dd"; echo "exit=$?"
+Test accounts ready: test.student@lablog.test (student), test.student2@lablog.test (student), test.lecturer@lablog.test (lecturer)
+Removed 0 test records, 0 photo files and 0 test labs.
+scripts/test-hosted.sh:30: read-only variable: status
+exit=1
+$ sed -n 30p scripts/test-hosted.sh
+status=0

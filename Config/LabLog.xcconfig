@@ -9,5 +9,5 @@ SUPABASE_ANON_KEY =
 
 #include? "Secrets.xcconfig"
 
-// Optional, also git-ignored: iPhone builds against a hosted backend (ADR-025).
+// Optional, also git-ignored: every build against a hosted backend instead (ADR-025, ADR-030).
 #include? "Secrets.hosted.xcconfig"

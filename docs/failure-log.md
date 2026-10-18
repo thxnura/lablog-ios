@@ -44,6 +44,7 @@ Failure 013 has no image (see the entry).
 | [028](#failure-028) | 18 Oct | A lecturer's timed first step never counted down, and the Dynamic Island didn't match |
 | [029](#failure-029) | 18 Oct | Docker Desktop quit again: the lecturer test got 401 saving an experiment |
 | [030](#failure-030) | 18 Oct | The lecturer test checked an edited experiment before the save had finished |
+| [031](#failure-031) | 18 Oct | The new hosted test script stopped at once: `read-only variable: status` |
 
 ## Failures
 
@@ -472,6 +473,19 @@ That new test step failed first: `XCTAssertTrue failed - sign-in-popover not fou
 **Cause:** After tapping Save on the edited experiment, the test waited for the experiment's row to exist, then read its label for "3 steps". But the row already existed behind the sheet, so the wait ended at once and the label was read about three seconds after the tap. The screen recording shows the editor still open with Save spinning: the request to the local server hadn't answered yet. The same test passed in the previous run, when the save was quicker.
 **Fix:** The test now waits up to 15 s for the row's label to contain "3 steps" instead of for the row to exist. The lecturer test passed on its own straight after, and the other five UI tests passed in the same full run. A final full run at 16:28, after 017e, passed all 63 unit tests and all 6 UI tests together, and the 20 backend tests passed.
 
+### Failure 031
+**The new hosted test script stopped at once: `read-only variable: status`** · 18 Oct 2026
+
+**Type:** my own script (tooling)
+**What I was doing:** The first run of `scripts/test-hosted.sh`, which runs the tests against the hosted backend (ADR-030).
+**Error / output:**
+    Test accounts ready: test.student@lablog.test (student), test.student2@lablog.test (student), test.lecturer@lablog.test (lecturer)
+    Removed 0 test records, 0 photo files and 0 test labs.
+    scripts/test-hosted.sh:30: read-only variable: status
+**Screenshot:** ![031](screenshots/031-zsh-status-read-only.png) (log: `031-zsh-status-read-only.log`)
+**Cause:** The script is a zsh script, and in zsh `status` is a built-in, read-only name for the last exit code (like `$?`). Assigning `status=0` stopped the script before `xcodebuild` ran.
+**Fix:** The variable is now `result`. The next run passed all 63 unit tests and all 6 UI tests against the hosted backend, then removed the 3 records, 3 photo files and 1 lab the test accounts had created.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -526,6 +540,7 @@ correction (also in the report, §9.3).
 | 45 | "push as me" | The 8 iOS commits checked for my authorship and no co-author lines, then pushed | Worked |
 | 46 | "did u update the doc ss and markdoen and all" | An audit of the shared doc, screenshots and Markdown. Fixed: four doc sections still showing old screens, the doc's summary, the iOS README ("sign in from the Sync tab", no lecturer figure), the screenshots README and the viva notes; README changes pushed | Worked (gaps found and fixed) |
 | 47 | "update the report as well" | A full read of the report against the app. Updated: lecturer lab authoring in the idea, the read path, the API table, the constraint chapter (a wait anchored on the record's start; validation when an experiment is written), the checklist's `startedAt`, the lecturer components, the failure and test notes, my own role, limitations; PDF and Word rebuilt | Worked |
+| 48 | "ok what are the more gaps have, also do not use docker, us the vercel link for testog and make finalzie" | A gap check against the brief; every test moved to the hosted backend (ADR-030): test-only accounts, the backend suite against the deployed API, the simulator and UI tests on the hosted build, a clean-up before and after each run; docs, report and both repos finalised | Worked (failure 031, in the new script) |
 
 ### Notes on selected prompts
 

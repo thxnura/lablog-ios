@@ -93,7 +93,14 @@ Open `LabLog.xcodeproj`, choose the **LabLog** scheme and an iPhone simulator, a
 catalog is bundled, so the whole student flow works without a server: browse, complete steps, take
 photos, submit. Records stay on the device.
 
-### 2. With the backend (sign-in, sync, lecturer review)
+### 2. With the hosted backend (recommended)
+The API is deployed on Vercel (`https://lablog-backend.vercel.app/api`) with a hosted Supabase
+project (ADR-025). Copy `Config/Secrets.hosted.example.xcconfig` to `Config/Secrets.hosted.xcconfig`
+(git-ignored) and fill it in: every build, iPhone and simulator alike, then uses the hosted backend
+on any network, with no Docker or running Mac (ADR-030). The hosted accounts have their own private
+passwords. The server address can't be edited in a hosted build.
+
+### 3. With a local backend (optional, for offline development)
 1. Start the backend locally; see the [backend README](https://github.com/thxnura/lablog-backend#readme).
    Its `npm run local:setup -- --host <your Mac's IP>` prints the three values below.
 2. Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (git-ignored) and fill in
@@ -102,33 +109,29 @@ photos, submit. Records stay on the device.
    `LabLog-Student-1` and `lecturer@lablog.test` / `LabLog-Lecturer-1`.
 
 If the Mac's address changes later (another Wi-Fi, a phone hotspot), set it in the app under
-**Sync → Server** and tap **Test connection**; no rebuild is needed.
-
-### 3. iPhone builds against the hosted backend
-The API is also deployed on Vercel (`https://lablog-backend.vercel.app/api`) with a hosted Supabase
-project (ADR-025). Copy `Config/Secrets.hosted.example.xcconfig` to `Config/Secrets.hosted.xcconfig`
-(git-ignored) and fill it in: iPhone builds then use the hosted backend on any network, while the
-simulator and the UI tests stay on the local stack. The hosted accounts have their own passwords
-(not the demo ones above). The server address can't be edited in a hosted build.
+**Sync → Server** and tap **Test connection**; no rebuild is needed. (Without
+`Secrets.hosted.xcconfig`; when it exists, it wins.)
 
 To run on a physical iPhone, choose your own team under *Signing & Capabilities* for the LabLog and
 LabLogWidgets targets.
 
 ### Tests
 ```sh
-xcodebuild test -project LabLog.xcodeproj -scheme LabLog \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+scripts/test-hosted.sh      # against the hosted backend: no Docker (ADR-030)
 ```
 63 unit tests (constraint engine, local store, sync engine, server endpoint, sync indicator, new
 experiments, Live Activity and guides) and 6 UI tests (the titration flow to submission, the timer
-and Dynamic Island, sign-in with sync and restore, lecturer review, a lecturer creating a lab, and
-draft editing with the server setting). The app opens on sign-in, so the UI tests need the local
-backend running.
+and Dynamic Island, sign-in with sync and restore, lecturer review, a lecturer creating and editing a
+lab, and draft editing with the server setting). The app opens on sign-in, so the UI tests need a
+backend. `scripts/test-hosted.sh` signs in with three test-only accounts from the backend's git-ignored
+`.env.hosted` (never the demo accounts) and deletes everything they created before and after the
+run. Against a local stack instead, run `xcodebuild test -project LabLog.xcodeproj -scheme LabLog
+-destination 'platform=iOS Simulator,name=iPhone 17 Pro'` without `Secrets.hosted.xcconfig`.
 
 ## Documentation
 
 - [`docs/LabLog-Report.pdf`](docs/LabLog-Report.pdf): the project report.
-- [`docs/decision-records.md`](docs/decision-records.md): 29 architecture decision records.
+- [`docs/decision-records.md`](docs/decision-records.md): 30 architecture decision records.
 - [`docs/failure-log.md`](docs/failure-log.md): every failure with its exact error, cause and fix, and every AI prompt.
 - [`docs/screenshots/`](docs/screenshots/): evidence and UI screenshots (see its README).
 
