@@ -33,6 +33,10 @@ Failure 013 has no image (see the entry).
 | [017](#failure-017) | 18 Oct | UI tests failed in a different place each run while the Mac was overloaded |
 | [018](#failure-018) | 18 Oct | Since 16 Oct the server deleted every new photo right after it was uploaded |
 | [019](#failure-019) | 18 Oct | "Start lab record" sometimes opened an empty "Submitted record" screen |
+| [020](#failure-020) | 18 Oct | The sync popover said "Sign in to sync" but had no way to sign in (UX) |
+| [021](#failure-021) | 18 Oct | Sign-in on my iPhone hung, then timed out: the Mac's IP had changed again |
+| [022](#failure-022) | 18 Oct | A UI test started signed in: a session left in the Keychain by a test that failed |
+| [023](#failure-023) | 18 Oct | Lecturer UI test: "Server returned 500: The connection to the database timed out" |
 
 ## Failures
 
@@ -282,7 +286,7 @@ After the failure, `xcodebuild` stayed alive for more than 10 minutes and had to
     Load Avg: 10.54, 17.98, 27.88        LabLog %CPU while idle: 0.0 0.0 0.0 0.0 0.0
 **Screenshot:** ![017](screenshots/017-ui-tests-flaky-under-load.png) (log: `017-ui-tests-flaky-under-load.log`)
 **Cause:** Each run failed at a different step, and each failure was a tap or a focus that never arrived: the next screen didn't open, or the text field had no keyboard when the test typed. The Mac's load average was near 28 at the time (other work was running), and a test that normally takes about 90 seconds took 152. The app itself was idle at 0% CPU, so it was not busy or stuck; the simulator was slow to deliver events. The new indicator was not involved: none of the failures touched the toolbar.
-**Fix:** The test helpers now confirm every tap and focus and retry: `tap(_:expecting:)` retries up to twice, `openGuide` re-taps when the guide doesn't open, and a new `focus(_:)` waits for the keyboard before typing (the observation and step-note fields). The next full run passed: 51 unit tests and 5 UI tests. The app code was not changed for this. The dark-mode rerun then hit one more dropped tap of the same kind (*Mark step done* in the step guide, `LabLogFlowUITests.swift:223`) while the backend tests ran alongside; that tap now goes through `tap(_:expecting:)` too, and the rerun passed.
+**Fix:** The test helpers now confirm every tap and focus and retry: `tap(_:expecting:)` retries up to twice, `openGuide` re-taps when the guide doesn't open, and a new `focus(_:)` waits for the keyboard before typing (the observation and step-note fields). The next full run passed: 51 unit tests and 5 UI tests. The app code was not changed for this. The dark-mode rerun then hit one more dropped tap of the same kind (*Mark step done* in the step guide, `LabLogFlowUITests.swift:223`) while the backend tests ran alongside; that tap now goes through `tap(_:expecting:)` too, and the rerun passed. The last full run of the day hit one more: the lecturer test's tap on the newest submission, made just as the list finished loading, didn't open it (`failed - submission detail not found`, the list still on screen ten seconds later). That tap now retries too ![017b](screenshots/017b-lecturer-tap-dropped.png) (log: `017b-lecturer-tap-dropped.log`). One more in the run after that: the server-address field was typed into before it had focus (`Failed to synthesize event: Neither element nor any descendant has keyboard focus`); it now goes through `focus(_:)` like the other fields ![017c](screenshots/017c-server-field-focus.png) (log: `017c-server-field-focus.log`).
 
 ### Failure 018
 **Since 16 Oct the server deleted every new photo right after it was uploaded** · 18 Oct 2026
@@ -322,6 +326,57 @@ After the failure, `xcodebuild` stayed alive for more than 10 minutes and had to
 **Cause:** `RecordCaptureView` had two tasks: one created its model, the other loaded it (and reloaded whenever the store changed). SwiftUI doesn't promise which starts first. When the load ran first, the model didn't exist yet, so nothing loaded; with no later store change, the screen kept an empty model. An empty model has no record, so it isn't a draft: the title said "Submitted record", with 0 of 0 steps and no way to work. The same test had passed four times today, so it happens rarely, but a student would have seen it.
 **Fix:** One task creates the model and loads it, and runs again when the store changes. The next full run passed.
 
+### Failure 020
+**The sync popover said "Sign in to sync" but had no way to sign in** · 18 Oct 2026
+
+**Type:** UX, reported from my iPhone (like 007)
+**What I was doing:** Using the new build on my phone, signed out, with 9 records waiting. I tapped the sync icon, then tapped the popover expecting to sign in.
+**Error / output:** No error: the popover only said "9 records are saved on this iPhone. Sign in from the Sync tab to upload." Tapping it did nothing.
+**Screenshot:** ![020](screenshots/020-popover-no-sign-in.png) (my iPhone)
+**Cause:** ADR-024 gave the popover one action, *Sync now*, and only for "waiting" and "failed". Signing in was left to the Sync tab, so the one state that needs an action had none.
+**Fix:** The indicator state now names its action (`action`: `.syncNow` or `.signIn`). Signed out, the popover shows **Sign in**, which closes the popover and opens the sign-in sheet in place; the sheet is presented once the popover has gone, because UIKit won't start a second presentation while the first is dismissing. A unit test checks the action for each state, and the editing UI test now taps **Sign in** in the popover and waits for the email field.
+
+That new test step failed first: `XCTAssertTrue failed - sign-in-popover not found`, although the button was on screen. The hierarchy attached to the failure showed every element in the popover, the button included, carrying the container's identifier `sync-status-details`: the same trap as failure 005, in code written two days later. The container now uses `.accessibilityElement(children: .contain)`, so the children keep their own identifiers, and the step passes. The same run caught "1 record … Sign in to upload them"; it now says "it" for one record. Evidence for this part: ![020b](screenshots/020-popover-sign-in-id.png) (log: `020-popover-sign-in-id.log`).
+
+### Failure 021
+**Sign-in on my iPhone hung, then timed out: the Mac's IP had changed again** · 18 Oct 2026
+
+**Type:** network (the 015 risk again, this time on the phone), plus a UX gap
+**What I was doing:** Signing in from the sync popover on my iPhone to upload 9 waiting records.
+**Error / output:** The sign-in button spun for about 20 seconds, then the sheet showed a request timeout.
+    $ ipconfig getifaddr en0
+    192.168.1.2
+    $ curl … http://192.168.1.88:54321/auth/v1/health   → 000 4.007411s
+    $ curl … http://192.168.1.2:54321/auth/v1/health    → 200 0.047226s
+**Screenshot:** ![021](screenshots/021-sign-in-timeout.png) (log: `021-sign-in-timeout.log`)
+**Cause:** The router gave the Mac a new address again (192.168.1.88 → 192.168.1.2). The phone's build pointed at .88, where nothing answers, so the sign-in request waited for its full 20-second timeout. The error then said only that the request timed out, which doesn't tell a student what to do; the fix (Sync → Server) was on another tab.
+**Fix:** Sign-in now gives up after 8 seconds (a server on the same Wi-Fi answers in well under one). When nothing answers, it says "Can't reach the server at 192.168.1.88. If your Mac's address has changed, update it below." and shows **Change server address**, which opens the Server sheet on top of sign-in. A unit test signs in against an address where nothing listens and checks that message. The build default is now 192.168.1.2, and the new build is on my iPhone. The lasting fix is a hosted backend, which doesn't depend on the Mac's address.
+
+### Failure 022
+**A UI test started signed in: a session left in the Keychain by a test that failed** · 18 Oct 2026
+
+**Type:** test isolation
+**What I was doing:** The full run after 017b.
+**Error / output:**
+    LabLogFlowUITests.swift:106: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed - sign-in-popover not found
+    # the popover: 'Everything is synced', 'Your records and photos are on the server.', 'Last synced 3 seconds ago'
+**Screenshot:** ![022](screenshots/022-test-started-signed-in.png) (log: `022-test-started-signed-in.log`)
+**Cause:** The editing test never signs in, yet the app was signed in and fully synced. In the previous run the lecturer test had failed (017b) before its last line, which signs out, so the lecturer's session stayed in the simulator's Keychain. UI tests start with an empty in-memory store, but the Keychain outlives the app.
+**Fix:** A UI-test launch (in-memory store) now also signs out, as it already clears timers and notifications. Tests that need an account sign in themselves.
+
+### Failure 023
+**Lecturer UI test: "Server returned 500: The connection to the database timed out"** · 18 Oct 2026
+
+**Type:** environment (the local stack under load); no code change
+**What I was doing:** The full run after the 022 fix.
+**Error / output:**
+    LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - submission-student@lablog.test not found.
+    # the screen: 'Couldn't load submissions' / 'Server returned 500: The connection to the database timed out'
+    Load Avg: 11.44, 11.84, 10.40
+**Screenshot:** ![023](screenshots/023-database-timeout.png) (log: `023-database-timeout.log`)
+**Cause:** The lecturer's submissions request reached the API, but the local database didn't answer in time. Docker's VM (3.8 GB) was shared with another project's container (`jenkins`, 714 MB), the Mac's load average was about 11, and a device build had just run. A minute later every service answered in milliseconds. The app did the right thing: it showed "Couldn't load submissions" with the server's message instead of an empty list.
+**Fix:** None in the code. The test passed on the rerun. It is one more reason for a hosted backend (§11).
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -351,7 +406,9 @@ correction (also in the report, §9.3).
 | 20 | "i checked the readme and other stuff, i cant give this repos to sir, make it ready to submit" | Both repos prepared for a reader: new READMEs, the report PDF in the repo, the failure log reorganised (index, failures in order, prompts table), template notes and exam wording removed, a broken `lint` script dropped | Worked |
 | 21 | "make repo public" | Full git history scanned for secrets (none), then both repos made public and checked without signing in | Worked |
 | 22 | "btw in readme and dark mode ss" | The dark-mode figure added to the README | Worked |
-| 23 | "btw make app more production ready, i mean this style online status look odd, make it production ready" (with a screenshot of the toolbar) | The "● Online 1" pill replaced by a quiet sync icon with an explanatory popover and Sync now (ADR-024), 4 unit tests, new screenshots | Partially (failure 017; the screenshot review found a signed-out icon that read as an account button, a notification left over from another test, "Your 0 records" wording and failure 018; the final full run found failure 019; all fixed) |
+| 23 | "btw make app more production ready, i mean this style online status look odd, make it production ready" (with a screenshot of the toolbar) | The "● Online 1" pill replaced by a quiet sync icon with an explanatory popover and Sync now (ADR-024), 4 unit tests, new screenshots | Partially (failure 017; the screenshot review found a signed-out icon that read as an account button, a notification left over from another test, "Your 0 records" wording and failure 018; the final full run found failure 019; all fixed. The popover still had no way to sign in: failure 020, reported from my iPhone) |
+| 24 | "when i click here itd not prompt to signin, fix it" (with a screenshot of the sync popover from my iPhone) | A **Sign in** button in the signed-out popover that opens the sign-in sheet in place; the action modelled in `SyncIndicatorState` with a unit test; the UI test taps it | Partially (failure 020: the new UI test step failed first because the popover's identifier hid the button's, as in 005; fixed) |
+| 25 | "signin takes too much time, check whats happening", then "i mean request timeout" | The cause found (the Mac's IP changed again); sign-in now fails in 8 s with a clear message and **Change server address**; a unit test; the fixed build on my iPhone | Worked (failure 021; the full run that followed found failure 022, fixed) |
 
 ### Notes on selected prompts
 

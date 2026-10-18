@@ -1,0 +1,9 @@
+# xcodebuild test, 18 Oct 11:55: the new UI test step for the popover's Sign in button (excerpt)
+
+LabLogUITests/LabLogFlowUITests.swift:106: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed - sign-in-popover not found
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (56.145 seconds).
+# the popover in the UI hierarchy attached to the failure: every child carries the container's identifier
+Image, 0x10375eb80, {{107.7, 90.3}, {34.3, 32.0}}, identifier: 'sync-status-details', label: 'Icloud Upload' <AX element pid: 4143, elementOrHash.elementID: 4760616336.299>
+StaticText, 0x10375eca0, {{154.0, 88.0}, {115.3, 22.7}}, identifier: 'sync-status-details', label: 'Sign in to sync' <AX element pid: 4143, elementOrHash.elementID: 4760666576.300>
+StaticText, 0x10375edc0, {{154.0, 113.7}, {222.0, 42.0}}, identifier: 'sync-status-details', label: '1 record is saved on this iPhone. Sign in to upload them.' <AX element pid: 4143, elementOrHash.elementID: 4312728208.301>
+Button, 0x10375eee0, {{108.0, 167.7}, {268.0, 36.7}}, identifier: 'sync-status-details', label: 'Sign in' <AX element pid: 4143, elementOrHash.elementID: 4311362064.302>

@@ -1,0 +1,5 @@
+# xcodebuild test, full run, 18 Oct 12:15: the server-address field was typed into before it had focus (excerpt)
+
+    t =   146.39s Tap "server-host" Any
+<unknown>:0: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : Failed to synthesize event: Neither element nor any descendant has keyboard focus. Event dispatch snapshot: TextField, {{32.0, 210.7}, {338.0, 52.3}}, identifier: 'server-host', placeholderValue: '192.168.1.2', value: 127.0.0.1
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (158.510 seconds).

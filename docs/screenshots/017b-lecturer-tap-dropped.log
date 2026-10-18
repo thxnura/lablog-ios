@@ -1,0 +1,10 @@
+# xcodebuild test, last full run, 18 Oct 12:05: one more dropped tap of the 017 kind (excerpt)
+
+    t =   135.31s Waiting 10.0s for "submission-student@lablog.test" Any to exist
+    t =   137.70s Tap "submission-student@lablog.test" Any
+    t =   138.38s Waiting 10.0s for "Procedure" StaticText to exist
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - submission detail not found.
+# the screen 10 s after the tap: still the submissions list
+                            NavigationBar, 0x102634200, {{0.0, 62.0}, {402.0, 54.0}}, identifier: 'Acid–Base Titration'
+                                        StaticText, 0x1026303c0, {{16.0, 124.0}, {117.0, 26.7}}, label: 'Submissions'
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' failed (151.343 seconds).

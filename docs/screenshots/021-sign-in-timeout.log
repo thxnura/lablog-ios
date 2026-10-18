@@ -1,0 +1,7 @@
+# 18 Oct, about 12:10: sign-in on my iPhone waited, then failed with a request timeout. The app was built for 192.168.1.88.
+$ ipconfig getifaddr en0
+192.168.1.2
+$ curl -s -m 4 -o /dev/null -w '%{http_code} %{time_total}s\n' http://192.168.1.88:54321/auth/v1/health
+000 4.007411s
+$ curl -s -m 4 -o /dev/null -w '%{http_code} %{time_total}s\n' http://192.168.1.2:54321/auth/v1/health
+200 0.047226s

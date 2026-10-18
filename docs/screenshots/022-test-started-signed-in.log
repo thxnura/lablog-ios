@@ -1,0 +1,12 @@
+# xcodebuild test, 18 Oct 12:10, the run after 017b: the editing test (in-memory store, never signs in) found the app signed in (excerpt)
+
+    t =    52.14s Tap "sync-indicator" Any
+    t =    55.69s Waiting 10.0s for "sign-in-popover" Any to exist
+LabLogUITests/LabLogFlowUITests.swift:106: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed - sign-in-popover not found
+# the popover in the UI hierarchy attached to the failure
+Other, 0x106255820, {{109.3, 88.0}, {265.2, 90.0}}, identifier: 'sync-status-details' <AX element pid: 14802, elementOrHash.elementID: 4716829856.301>
+Image, 0x106255940, {{109.3, 90.3}, {34.3, 23.7}}, identifier: 'checkmark.icloud', label: 'checkmark.icloud', Selected <AX element pid: 14802, elementOrHash.elementID: 4321846128.304>
+StaticText, 0x106255a60, {{155.5, 88.0}, {164.3, 22.7}}, label: 'Everything is synced' <AX element pid: 14802, elementOrHash.elementID: 4716937776.305>
+StaticText, 0x106255b80, {{155.5, 113.7}, {219.0, 42.0}}, label: 'Your records and photos are on the server.' <AX element pid: 14802, elementOrHash.elementID: 4716838320.306>
+StaticText, 0x106255ca0, {{155.5, 160.7}, {165.3, 17.3}}, label: 'Last synced 3 seconds ago' <AX element pid: 14802, elementOrHash.elementID: 4716802256.307>
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (66.781 seconds).

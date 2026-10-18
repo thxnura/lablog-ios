@@ -1,0 +1,16 @@
+# xcodebuild test, full run, 18 Oct 12:18: the lecturer's submissions didn't load (excerpt)
+
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - submission-student@lablog.test not found.
+# the screen: the app's error state, with the server's message
+                                        StaticText, 0x101c61530, {{65.7, 167.3}, {270.7, 96.3}}, label: 'Couldn't load submissions'
+                                        StaticText, 0x101c61650, {{50.2, 266.7}, {301.7, 42.0}}, label: 'Server returned 500: The connection to the database timed out'
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' failed (172.001 seconds).
+$ top -l 1 -n 0 | grep "Load Avg"
+Load Avg: 11.44, 11.84, 10.40 
+$ docker stats --no-stream --format '{{.Name}} {{.MemUsage}}'
+supabase_storage_lablog-backend 195.7MiB / 3.826GiB
+supabase_rest_lablog-backend 118.9MiB / 3.826GiB
+supabase_auth_lablog-backend 18.98MiB / 3.826GiB
+supabase_kong_lablog-backend 124.3MiB / 3.826GiB
+supabase_db_lablog-backend 117.8MiB / 3.826GiB
+jenkins 713.5MiB / 3.826GiB
