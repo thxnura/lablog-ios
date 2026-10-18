@@ -10,6 +10,8 @@ struct SignInView: View {
     @State private var password = ""
     @State private var isWorking = false
     @State private var error: String?
+    @State private var serverUnreachable = false
+    @State private var showServer = false
     @FocusState private var focus: Field?
 
     private enum Field { case email, password }
@@ -55,6 +57,18 @@ struct SignInView: View {
                                 .foregroundStyle(Theme.danger)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .transition(.opacity)
+                                .accessibilityIdentifier("sign-in-error")
+                        }
+                        if serverUnreachable {
+                            // Fix the address without leaving sign-in (Sync → Server, in place).
+                            Button {
+                                showServer = true
+                            } label: {
+                                Label("Change server address", systemImage: "server.rack")
+                                    .font(.footnote.weight(.semibold))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("sign-in-change-server")
                         }
                     }
 
@@ -78,6 +92,9 @@ struct SignInView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showServer, onDismiss: { serverUnreachable = false; error = nil }) {
+                ServerSettingsSheet()
+            }
         }
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.canvas)
@@ -97,6 +114,7 @@ struct SignInView: View {
         guard !email.isEmpty, !password.isEmpty else { return }
         isWorking = true
         error = nil
+        serverUnreachable = false
         defer { isWorking = false }
         do {
             try await app.auth.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
@@ -104,6 +122,7 @@ struct SignInView: View {
             await app.refreshAndSync()
         } catch {
             self.error = error.localizedDescription
+            serverUnreachable = (error as? AuthService.AuthError)?.isUnreachable ?? false
         }
     }
 }

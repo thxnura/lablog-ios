@@ -31,4 +31,23 @@ final class ServerEndpointTests: XCTestCase {
             XCTAssertFalse(AppConfig.isValidHost(bad), bad)
         }
     }
+
+    /// An address where nothing answers (the Mac moved) fails fast with a
+    /// message that says what to fix, not "The request timed out." (021).
+    @MainActor
+    func testSignInToAnAddressThatDoesNotAnswerSaysSo() async {
+        let gone = AppConfig(apiBaseURL: URL(string: "http://127.0.0.1:9/api"),
+                             supabaseURL: URL(string: "http://127.0.0.1:9"), supabaseAnonKey: "anon")
+        let auth = AuthService(endpoint: ServerEndpoint(built: gone))
+        do {
+            try await auth.signIn(email: "student@lablog.test", password: "irrelevant")
+            XCTFail("sign-in should fail")
+        } catch let error as AuthService.AuthError {
+            XCTAssertTrue(error.isUnreachable)
+            XCTAssertEqual(error.errorDescription,
+                           "Can't reach the server at 127.0.0.1. If your Mac's address has changed, update it below.")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
 }

@@ -17,14 +17,26 @@ final class AuthService {
     enum AuthError: LocalizedError {
         case notConfigured
         case server(String)
+        /// The server address didn't answer: usually the Mac's IP has changed (failure 021).
+        case unreachable(host: String)
 
         var errorDescription: String? {
             switch self {
             case .notConfigured: "Supabase isn't configured in this build (see Config/Secrets.xcconfig)."
             case .server(let message): message
+            case .unreachable(let host): "Can't reach the server at \(host). If your Mac's address has changed, update it below."
             }
         }
+
+        var isUnreachable: Bool {
+            if case .unreachable = self { true } else { false }
+        }
     }
+
+    /// Errors that mean "nothing answered at that address", as opposed to no internet at all.
+    private static let unreachableCodes: Set<URLError.Code> = [
+        .timedOut, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost,
+    ]
 
     private(set) var session: Session?
     var isSignedIn: Bool { session != nil }
@@ -125,12 +137,20 @@ final class AuthService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 20
+        // A server on the same Wi-Fi answers in well under a second; don't keep
+        // the student waiting 20 s on an address that is gone.
+        request.timeoutInterval = 8
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where Self.unreachableCodes.contains(error.code) {
+            throw AuthError.unreachable(host: supabaseURL.host() ?? "the saved address")
+        }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
