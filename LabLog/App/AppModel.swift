@@ -177,6 +177,17 @@ final class AppModel {
     }
 
     /// Something was written locally: update the badge and try to push it.
+    /// Sign out and clear this iPhone of the student's work: records (synced or
+    /// not), their photos, timers and notifications. The catalog stays, and the
+    /// server keeps everything that synced. The caller warns first if records
+    /// are still waiting to upload.
+    func signOut() {
+        StepTimerCoordinator.clearAll()
+        store.removeAllRecords()
+        auth.signOut()
+        sync.refreshPendingCount()
+    }
+
     func didChangeLocally() {
         sync.refreshPendingCount()
         Task { await sync.sync() }

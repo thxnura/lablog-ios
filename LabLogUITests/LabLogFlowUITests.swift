@@ -445,6 +445,10 @@ final class LabLogFlowUITests: XCTestCase {
         sleep(1)
         snap("23-synced-to-server")
         signOut()
+
+        // Signing out clears this iPhone: the synced record is on the server, not here.
+        selectTab("Records")
+        XCTAssertTrue(app.staticTexts["No lab records"].waitForExistence(timeout: 5), "records cleared on sign-out")
     }
 
     /// Lecturer view: a student submits, it syncs, the lecturer reviews it.

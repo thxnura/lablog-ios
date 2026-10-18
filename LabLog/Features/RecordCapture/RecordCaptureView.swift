@@ -33,6 +33,7 @@ private struct RecordCaptureContent: View {
     @Environment(\.dismiss) private var dismiss
     @State private var cameraStep: Step?
     @State private var confirmDiscard = false
+    @State private var isLeaving = false
     @State private var toast: String?
     @State private var toastTask: Task<Void, Never>?
     @State private var confirmSubmit = false
@@ -138,8 +139,15 @@ private struct RecordCaptureContent: View {
         .sheet(isPresented: $confirmSubmit) {
             SubmitReviewSheet(model: model)
         }
+        // Signed out from the Sync tab while this record was open: it's gone.
+        .onChange(of: model.isGone) { _, gone in
+            guard gone, !isLeaving else { return }
+            isLeaving = true
+            dismiss()
+        }
         .alert("Discard this draft?", isPresented: $confirmDiscard) {
             Button("Discard", role: .destructive) {
+                isLeaving = true
                 model.discard()
                 dismiss()
             }

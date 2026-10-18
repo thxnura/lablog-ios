@@ -7,6 +7,7 @@ struct SyncStatusView: View {
     @State private var failed: [(record: LabRecord, title: String)] = []
     @State private var showSignIn = false
     @State private var showServer = false
+    @State private var confirmSignOut = false
 
     var body: some View {
         ScrollView {
@@ -63,9 +64,20 @@ struct SyncStatusView: View {
                                 Text(session.email ?? "Student")
                             }
                             Divider()
-                            Button("Sign out", role: .destructive) { app.auth.signOut() }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .accessibilityIdentifier("sign-out")
+                            Button("Sign out", role: .destructive) {
+                                // Signing out clears this iPhone; warn if that would lose work.
+                                if app.sync.pendingCount > 0 { confirmSignOut = true } else { app.signOut() }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("sign-out")
+                            .alert("Sign out and delete unsent work?", isPresented: $confirmSignOut) {
+                                Button("Sign Out", role: .destructive) { app.signOut() }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text(app.sync.pendingCount == 1
+                                     ? "1 record hasn't uploaded yet. Signing out removes your records from this iPhone, so it will be lost."
+                                     : "\(app.sync.pendingCount) records haven't uploaded yet. Signing out removes your records from this iPhone, so they will be lost.")
+                            }
                         } else {
                             InfoRow(symbol: "person.crop.circle.badge.questionmark", title: "Not signed in", tint: .secondary) {
                                 EmptyView()

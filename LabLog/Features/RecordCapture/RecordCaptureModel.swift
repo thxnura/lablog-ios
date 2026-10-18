@@ -10,6 +10,8 @@ final class RecordCaptureModel {
     let recordId: UUID
 
     private(set) var record: LabRecord?
+    /// The record existed and then disappeared (signed out from another tab).
+    private(set) var isGone = false
     private(set) var experiment: Experiment?
     private(set) var steps: [Step] = []
     var completions: [StepCompletion] = []
@@ -45,8 +47,12 @@ final class RecordCaptureModel {
     /// Reload everything from the store (cheap; called whenever it changes).
     func load() {
         let store = app.store
+        let wasLoaded = record != nil
         record = store.record(id: recordId)
-        guard let record else { return }
+        guard let record else {
+            isGone = wasLoaded
+            return
+        }
         experiment = store.experiment(id: record.experimentId)
         steps = store.steps(experimentId: record.experimentId)
         completions = store.completions(recordId: recordId)

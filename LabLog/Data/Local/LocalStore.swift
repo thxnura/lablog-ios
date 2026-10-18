@@ -41,6 +41,12 @@ protocol LocalStore: AnyObject {
     /// otherwise, or with no server, it is removed at once. Drafts only.
     func discardDraft(id: UUID, sendTombstone: Bool)
 
+    // MARK: Account
+    /// Deletes every record with its steps, notes, observation and photos
+    /// (files too); the catalog stays. Signing out uses it, so the next person
+    /// on this iPhone neither sees the work nor uploads it to their account.
+    func removeAllRecords()
+
     // MARK: Outbox
     /// Records that are not `synced` (pending or failed), oldest first.
     func pendingRecords() -> [LabRecord]

@@ -19,6 +19,28 @@ final class SwiftDataStoreTests: XCTestCase {
         XCTAssertEqual(store.labs().count, 2)
     }
 
+    /// Signing out clears the student's work from the iPhone but keeps the catalog.
+    func testRemoveAllRecordsKeepsTheCatalog() {
+        let synced = store.createRecord(experimentId: experimentId)
+        store.applySyncResult(id: synced.id, synced: true, sentRevision: synced.revision, error: nil)
+        let draft = store.createRecord(experimentId: experimentId)
+        let step = store.steps(experimentId: experimentId)[0]
+        store.addCompletion(StepCompletion(id: UUID(), recordId: draft.id, stepId: step.id, completedAt: Date()))
+        store.setObservation(recordId: draft.id, text: "Crystals formed")
+        store.addAttachment(Attachment(id: UUID(), recordId: draft.id, stepId: step.id, localPath: nil,
+                                       storagePath: nil, syncState: .pendingCreate))
+
+        store.removeAllRecords()
+
+        XCTAssertTrue(store.records().isEmpty)
+        XCTAssertTrue(store.pendingRecords().isEmpty, "nothing left to upload to the next account")
+        XCTAssertTrue(store.completions(recordId: draft.id).isEmpty)
+        XCTAssertNil(store.observation(recordId: draft.id))
+        XCTAssertTrue(store.attachments(recordId: draft.id).isEmpty)
+        XCTAssertEqual(store.labs().count, 2, "the catalog stays")
+        XCTAssertEqual(store.steps(experimentId: experimentId).count, 4)
+    }
+
     func testNewRecordIsInOutbox() {
         let record = store.createRecord(experimentId: experimentId)
         XCTAssertEqual(record.syncState, .pendingCreate)

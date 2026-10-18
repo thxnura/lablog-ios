@@ -205,6 +205,11 @@ final class SwiftDataStore: LocalStore {
         save()
     }
 
+    func removeAllRecords() {
+        for entity in fetch(FetchDescriptor<RecordEntity>()) { purge(entity) }
+        save()
+    }
+
     func submitRecord(id: UUID, latitude: Double?, longitude: Double?) {
         guard let entity = recordEntity(id), entity.status == .draft else { return }
         entity.status = .submitted
