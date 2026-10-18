@@ -4,7 +4,8 @@ An offline-first iPhone app for university practicals. A student works through a
 **constrained checklist**: steps unlock in order, some need photo evidence or a timed wait. The
 student attaches photos, writes observations and notes, and submits a **location-stamped lab record**.
 Everything is saved on the phone first and syncs to the backend when a connection returns. Lecturers
-review submissions in the same app.
+use the same app to review submissions, create labs and experiments with step rules, and choose
+which students can do each lab.
 
 | | |
 |---|---|
@@ -42,13 +43,17 @@ review submissions in the same app.
 </tr>
 <tr><td align="center"><em>Lecturers review submissions: steps with times, photos, observation and location.</em></td></tr>
 <tr>
+<td><img src="docs/screenshots/report/fig-14-lecturer-labs.png" alt="Lecturer labs"></td>
+</tr>
+<tr><td align="center"><em>Lecturers create labs and experiments, set each step's rules (photo, wait, unlocks after) and choose the students.</em></td></tr>
+<tr>
 <td><img src="docs/screenshots/report/fig-13-dark.png" alt="Dark mode"></td>
 </tr>
 <tr><td align="center"><em>Dark mode: the app follows the system appearance, and every screen was checked in it.</em></td></tr>
 </table>
 
-More screens are in the report: submitting (Fig. 6), editing a draft (Fig. 11) and choosing the
-server (Fig. 12). All dark-mode screenshots are in
+More screens are in the report: sign-in, sync and restore (Fig. 9), submitting (Fig. 6), editing a
+draft (Fig. 11) and choosing the server (Fig. 12). All dark-mode screenshots are in
 [`docs/screenshots/ui-dark/`](docs/screenshots/ui-dark/).
 
 ## Architecture
@@ -93,7 +98,7 @@ photos, submit. Records stay on the device.
    Its `npm run local:setup -- --host <your Mac's IP>` prints the three values below.
 2. Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (git-ignored) and fill in
    `LABLOG_API_BASE_URL`, `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-3. Run the app and sign in from the **Sync** tab. Demo accounts: `student@lablog.test` /
+3. Run the app; it opens on sign-in. Demo accounts: `student@lablog.test` /
    `LabLog-Student-1` and `lecturer@lablog.test` / `LabLog-Lecturer-1`.
 
 If the Mac's address changes later (another Wi-Fi, a phone hotspot), set it in the app under
