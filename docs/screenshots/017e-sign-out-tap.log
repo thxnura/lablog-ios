@@ -1,0 +1,15 @@
+# 18 Oct, 16:06: testLecturerReview rerun for fresh report screenshots; the review itself passed, then sign-out (excerpt)
+
+    t =   177.26s Swipe up Target Application 'com.thxnura.LabLog'
+    t =   181.26s Tap "sign-out" Any
+    t =   181.86s Waiting 2.0s for "Sign Out" Button to exist
+    t =   182.88s     Checking `Expect predicate `existsNoRetry == 1` for object "Sign Out" Button`
+    t =   182.88s         Checking existence of `"Sign Out" Button`
+    t =   183.95s     Checking existence of `"Sign Out" Button`
+    t =   184.07s Waiting 10.0s for "email" Any to exist
+    t =   194.22s         Capturing element debug description
+    t =   194.22s     Checking existence of `"email" Any`
+    t =   194.32s Collecting debug information to assist test failure triage
+    t =   194.32s     Requesting snapshot of accessibility hierarchy for app with pid 6725
+LabLogUITests/LabLogFlowUITests.swift:172: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : XCTAssertTrue failed - back on the sign-in screen
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' failed (195.533 seconds).

@@ -1,0 +1,25 @@
+# 18 Oct, about 15:05: the lecturer UI test could not save an experiment (excerpts)
+
+LabLogUITests/LabLogFlowUITests.swift:506: error: -[LabLogUITests.LabLogFlowUITests testLecturerCreatesALab] : XCTAssertTrue failed - the experiment is in the lab
+# the editor's message, from the UI hierarchy attached to the failure
+StaticText, 0x101938380, {{16.0, 622.7}, {370.0, 54.3}}, label: 'Server returned 401: Invalid or expired token' <AX element pid: 47173, elementOrHash.elementID: 4411190656.944>
+$ docker ps
+failed to connect to the docker API at unix:///Users/thxnura/.docker/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /Users/thxnura/.docker/run/docker.sock: connect: no such file or directory
+$ grep -h "ELECTRON\] before-quit" ~/Library/Containers/com.docker.docker/Data/log/host/electron-2026-10-18.log
+2026-10-18T08:45:41.129Z info 	[ELECTRON] before-quit
+2026-10-18T09:34:08.357Z info 	[ELECTRON] before-quit
+
+# 18 Oct, about 15:13: Docker Desktop quit a third time; the next full run passed all 63 unit tests, then four UI tests failed
+LabLogUITests/LabLogFlowUITests.swift:123: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - Everything is synced not found.
+LabLogUITests/LabLogFlowUITests.swift:123: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:123: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:123: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : failed - signed in (sign-in against Supabase Auth) not found.
+$ grep -h "ELECTRON\] before-quit" ~/Library/Containers/com.docker.docker/Data/log/host/electron-2026-10-18.log
+2026-10-18T08:45:41.129Z info 	[ELECTRON] before-quit
+2026-10-18T09:34:08.357Z info 	[ELECTRON] before-quit
+2026-10-18T09:43:44.093Z info 	[ELECTRON] before-quit
+$ grep -c "BUGSNAG\] Uncaught exception" ~/Library/Containers/com.docker.docker/Data/log/host/electron-2026-10-18.log
+15
+$ df -h /System/Volumes/Data
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   460Gi   393Gi    25Gi    95%    8.1M  263M    3%   /System/Volumes/Data

@@ -1,0 +1,14 @@
+# 18 Oct, about 14:25: every UI test failed at sign-in, and then every backend test failed too (excerpts)
+
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testLecturerReview] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer] : failed - signed in (sign-in against Supabase Auth) not found.
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : failed - signed in (sign-in against Supabase Auth) not found.
+	 Executed 5 tests, with 5 failures (0 unexpected) in 205.364 (205.377) seconds
+
+$ npm run test:e2e
+  Error [AuthRetryableFetchError]: fetch failed
+      at async ensureDemoUsers (/Users/thxnura/Documents/MSc/Y1S1/Mobility/Assignment 01/lablog-backend/scripts/demo-users.ts:18:44)
+$ docker ps
+failed to connect to the docker API at unix:///Users/thxnura/.docker/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /Users/thxnura/.docker/run/docker.sock: connect: no such file or directory

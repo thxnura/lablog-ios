@@ -38,6 +38,12 @@ Failure 013 has no image (see the entry).
 | [022](#failure-022) | 18 Oct | A UI test started signed in: a session left in the Keychain by a test that failed |
 | [023](#failure-023) | 18 Oct | Lecturer UI test: "Server returned 500: The connection to the database timed out" |
 | [024](#failure-024) | 18 Oct | After signing out, the previous student's records were still on the phone (privacy) |
+| [025](#failure-025) | 18 Oct | Every UI and backend test failed at once: Docker Desktop had stopped |
+| [026](#failure-026) | 18 Oct | After signing back in, my earlier submissions were missing from the phone |
+| [027](#failure-027) | 18 Oct | Three UI tests failed once records were restored after sign-in |
+| [028](#failure-028) | 18 Oct | A lecturer's timed first step never counted down, and the Dynamic Island didn't match |
+| [029](#failure-029) | 18 Oct | Docker Desktop quit again: the lecturer test got 401 saving an experiment |
+| [030](#failure-030) | 18 Oct | The lecturer test checked an edited experiment before the save had finished |
 
 ## Failures
 
@@ -287,7 +293,7 @@ After the failure, `xcodebuild` stayed alive for more than 10 minutes and had to
     Load Avg: 10.54, 17.98, 27.88        LabLog %CPU while idle: 0.0 0.0 0.0 0.0 0.0
 **Screenshot:** ![017](screenshots/017-ui-tests-flaky-under-load.png) (log: `017-ui-tests-flaky-under-load.log`)
 **Cause:** Each run failed at a different step, and each failure was a tap or a focus that never arrived: the next screen didn't open, or the text field had no keyboard when the test typed. The Mac's load average was near 28 at the time (other work was running), and a test that normally takes about 90 seconds took 152. The app itself was idle at 0% CPU, so it was not busy or stuck; the simulator was slow to deliver events. The new indicator was not involved: none of the failures touched the toolbar.
-**Fix:** The test helpers now confirm every tap and focus and retry: `tap(_:expecting:)` retries up to twice, `openGuide` re-taps when the guide doesn't open, and a new `focus(_:)` waits for the keyboard before typing (the observation and step-note fields). The next full run passed: 51 unit tests and 5 UI tests. The app code was not changed for this. The dark-mode rerun then hit one more dropped tap of the same kind (*Mark step done* in the step guide, `LabLogFlowUITests.swift:223`) while the backend tests ran alongside; that tap now goes through `tap(_:expecting:)` too, and the rerun passed. The last full run of the day hit one more: the lecturer test's tap on the newest submission, made just as the list finished loading, didn't open it (`failed - submission detail not found`, the list still on screen ten seconds later). That tap now retries too ![017b](screenshots/017b-lecturer-tap-dropped.png) (log: `017b-lecturer-tap-dropped.log`). One more in the run after that: the server-address field was typed into before it had focus (`Failed to synthesize event: Neither element nor any descendant has keyboard focus`); it now goes through `focus(_:)` like the other fields ![017c](screenshots/017c-server-field-focus.png) (log: `017c-server-field-focus.log`). And one in the pendulum test after the hosted-build change, which didn't touch that screen: the tap on the timer pill didn't open the step guide, and the pill was still on the checklist (`LabLogFlowUITests.swift:388`). That tap now retries too ![017d](screenshots/017d-timer-pill-tap.png) (log: `017d-timer-pill-tap.log`).
+**Fix:** The test helpers now confirm every tap and focus and retry: `tap(_:expecting:)` retries up to twice, `openGuide` re-taps when the guide doesn't open, and a new `focus(_:)` waits for the keyboard before typing (the observation and step-note fields). The next full run passed: 51 unit tests and 5 UI tests. The app code was not changed for this. The dark-mode rerun then hit one more dropped tap of the same kind (*Mark step done* in the step guide, `LabLogFlowUITests.swift:223`) while the backend tests ran alongside; that tap now goes through `tap(_:expecting:)` too, and the rerun passed. The last full run of the day hit one more: the lecturer test's tap on the newest submission, made just as the list finished loading, didn't open it (`failed - submission detail not found`, the list still on screen ten seconds later). That tap now retries too ![017b](screenshots/017b-lecturer-tap-dropped.png) (log: `017b-lecturer-tap-dropped.log`). One more in the run after that: the server-address field was typed into before it had focus (`Failed to synthesize event: Neither element nor any descendant has keyboard focus`); it now goes through `focus(_:)` like the other fields ![017c](screenshots/017c-server-field-focus.png) (log: `017c-server-field-focus.log`). And one in the pendulum test after the hosted-build change, which didn't touch that screen: the tap on the timer pill didn't open the step guide, and the pill was still on the checklist (`LabLogFlowUITests.swift:388`). That tap now retries too ![017d](screenshots/017d-timer-pill-tap.png) (log: `017d-timer-pill-tap.log`). And one at the end of the lecturer test, rerun for fresh report screenshots: the tap on **Sign Out** didn't register, and ten seconds later the app was still on Sync (`XCTAssertTrue failed - back on the sign-in screen`, `LabLogFlowUITests.swift:172`; sign-out has no network call, so nothing was waiting). The helper now taps again when neither the confirmation nor the sign-in screen appears, and the rerun passed ![017e](screenshots/017e-sign-out-tap.png) (log: `017e-sign-out-tap.log`).
 
 ### Failure 018
 **Since 16 Oct the server deleted every new photo right after it was uploaded** · 18 Oct 2026
@@ -388,6 +394,84 @@ That new test step failed first: `XCTAssertTrue failed - sign-in-popover not fou
 **Cause:** Records are stored on the phone first and were never tied to an account there, so signing out only removed the session. Worse, a record that hadn't uploaded yet would have been uploaded by the next person to sign in, under their account.
 **Fix:** Signing out now clears the phone's records, notes, observations and photos, and ends timers and notifications; the catalog stays and the server keeps what synced (ADR-026). If anything is still waiting to upload, an alert warns that it will be lost. An open record screen closes itself when its record disappears. A store unit test covers the clearing.
 
+### Failure 025
+**Every UI and backend test failed at once: Docker Desktop had stopped** · 18 Oct 2026
+
+**Type:** environment; no code change
+**What I was doing:** The full run after redesigning the sign-in screen.
+**Error / output:**
+    LabLogFlowUITests.swift:120: error: … : failed - signed in (sign-in against Supabase Auth) not found.   (all 5 UI tests)
+    $ npm run test:e2e
+      Error [AuthRetryableFetchError]: fetch failed
+    $ docker ps
+    failed to connect to the docker API at unix:///Users/thxnura/.docker/run/docker.sock; … is the daemon running
+**Screenshot:** ![025](screenshots/025-docker-stopped.png) (log: `025-docker-stopped.log`)
+**Cause:** Docker Desktop had quit, taking the local Supabase stack with it. Every UI test now signs in at launch (ADR-027), so all five stopped at the same line; the redesign was not involved (the unit tests passed).
+**Fix:** Docker restarted (`open -a Docker`); the stack came back by itself and all 16 backend tests passed. Before a demo, check that Docker is running (the viva checklist says so).
+
+### Failure 026
+**After signing back in, my earlier submissions were missing from the phone** · 18 Oct 2026
+
+**Type:** missing feature, reported from my iPhone
+**What I was doing:** Signing out and back in as the student on my phone, then opening Records.
+**Error / output:** No error: Records was empty, although the hosted server had all ten of my records (`GET /api/records/mine` later returned them: 9 submitted, 1 draft).
+**Screenshot:** none; reported in words. The fix is checked by the sign-in UI test (sign out, sign back in, the record is listed again).
+**Cause:** The app only ever pushed records. ADR-026 made sign-out clear the phone, so after signing back in there was nothing to show, and nothing brought the records back.
+**Fix:** A new endpoint returns the student's own records with signed photo links, and the app restores the ones it lacks after every sync, downloading their photos; local records always win (ADR-028). Tests: one backend, two unit, one UI.
+
+### Failure 027
+**Three UI tests failed once records were restored after sign-in** · 18 Oct 2026
+
+**Type:** test isolation
+**What I was doing:** The first full run with ADR-028 in place.
+**Error / output:**
+    LabLogFlowUITests.swift:351: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed
+    LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : failed - timer-dial not found.
+    LabLogFlowUITests.swift:217: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+    # titration: Tap "step-node-4" → Waiting 3.0s for "toast": the step wasn't locked
+**Screenshot:** ![027](screenshots/027-tests-restored-old-records.png) (log: `027-tests-restored-old-records.log`)
+**Cause:** Every UI test signs in as the same local test student, who by now had dozens of records on the local server from earlier runs. After signing in, the app restored them (as it should), so "Start lab record" reopened an old draft with steps already done: Step 4 was no longer locked, and the pendulum's timer was already over. The sign-in and lecturer tests, which don't depend on a fresh record, passed.
+**Fix:** A debug-only launch argument, `-UITestSkipRestore`, starts the flow tests from an empty phone; only the sign-in test, which checks the restore, leaves it off. The app's behaviour is unchanged.
+
+### Failure 028
+**A lecturer's timed first step never counted down, and the Dynamic Island didn't match** · 18 Oct 2026
+
+**Type:** constraint-engine bug, reported from my iPhone
+**What I was doing:** Doing a lab I had just created as a lecturer, whose step had a wait but no "unlocks after" step.
+**Error / output:** No error: the step stayed on its full wait ("the counter is not going"), and the Dynamic Island didn't work.
+**Screenshot:** none; reported in words. The fix is covered by two new unit tests.
+**Cause:** The engine measures a wait from the latest prerequisite's completion, and fell back to *now* when there was none. Every check therefore restarted the wait, so it never ran down and the step could never be done. The seeded experiments always had a prerequisite before a timed step, so this only appeared once lecturers could write their own (ADR-029). The Live Activity used the same fallback: it started its countdown from the first check, while the app still said the step was locked.
+**Fix:** A wait with no prerequisites now runs from when the record was started, which is when the step unlocked. The engine's context and the Live Activity's timed step both take the record's start time, and the checklist component gains a `startedAt` property for it. Unit tests: the engine counts 50 s, 1 s, then unlocks for a 60 s first step; the timed step for the Dynamic Island starts at the record's start.
+
+### Failure 029
+**Docker Desktop quit again: the lecturer test got 401 saving an experiment** · 18 Oct 2026
+
+**Type:** environment
+**Error / output:**
+    LabLogFlowUITests.swift:506: error: … testLecturerCreatesALab : XCTAssertTrue failed - the experiment is in the lab
+    # the editor said: 'Server returned 401: Invalid or expired token'
+    $ docker ps   → failed to connect to the docker API … is the daemon running
+    # 15:13: it quit a third time; the next run passed all 63 unit tests, then four UI tests failed
+    LabLogFlowUITests.swift:123: error: … testPendulumTimer : failed - signed in (sign-in against Supabase Auth) not found.
+    Docker's log: [ELECTRON] before-quit at 08:45, 09:34 and 09:43 UTC (14:15, 15:04 and 15:13 here)
+    # 15:54: a fourth time, while rerunning the lecturer test for 030: the editor showed 'Server returned 401: Invalid or expired token' again
+    [com.docker.backend.electron] electron pid 59999 requested backend shutdown
+**Screenshot:** ![029](screenshots/029-docker-quit-again.png) (log: `029-docker-quit-again.log`); the fourth quit, from the test's screen recording: ![029b](screenshots/029b-fourth-quit-401.png)
+**Cause:** Docker Desktop quit a second, third and fourth time mid-run, taking the local Supabase Auth down. The API couldn't verify the token, so it answered 401; on the third quit, sign-in itself failed. Docker's own log shows an orderly quit each time (`before-quit`, then `will-quit`, then the app asking its backend to shut down), not a crash: something asked the app to quit; its 15 "Uncaught exception" entries all come during those shutdowns. Nothing in the app or API was wrong, and none of my commands quit it. The Mac's data volume is 95% full (25 GB free).
+**Fix:** Restarted Docker each time; the next full run passed except one test-timing failure (030), and the 20 backend tests passed. The phone uses the hosted backend, which doesn't depend on Docker (ADR-025). Before the viva: check Docker is running before a local demo, and free some disk space.
+
+### Failure 030
+**The lecturer test checked an edited experiment before the save had finished** · 18 Oct 2026
+
+**Type:** UI test timing (no app change)
+**What I was doing:** The full run after the timer fix (028), with Docker running again.
+**Error / output:**
+    LabLogUITests/LabLogFlowUITests.swift:518: error: -[LabLogUITests.LabLogFlowUITests testLecturerCreatesALab] : XCTAssertTrue failed - the edit is saved
+    Executed 6 tests, with 1 failure (0 unexpected) in 810.975 (811.005) seconds
+**Screenshot:** ![030](screenshots/030-edit-checked-too-early.png) (log: `030-edit-checked-too-early.log`), and the last frames of the test's screen recording ![030b](screenshots/030b-save-still-spinning.png)
+**Cause:** After tapping Save on the edited experiment, the test waited for the experiment's row to exist, then read its label for "3 steps". But the row already existed behind the sheet, so the wait ended at once and the label was read about three seconds after the tap. The screen recording shows the editor still open with Save spinning: the request to the local server hadn't answered yet. The same test passed in the previous run, when the save was quicker.
+**Fix:** The test now waits up to 15 s for the row's label to contain "3 steps" instead of for the row to exist. The lecturer test passed on its own straight after, and the other five UI tests passed in the same full run. A final full run at 16:28, after 017e, passed all 63 unit tests and all 6 UI tests together, and the 20 backend tests passed.
+
 ## AI prompts
 
 Every prompt, quoted exactly as typed, with what it produced and whether it worked without a
@@ -428,6 +512,16 @@ correction (also in the report, §9.3).
 | 31 | "now point it in app" | iPhone builds use the hosted backend through a git-ignored, iPhone-only config; the simulator and tests stay local; the Server row is read-only and the sign-in error fits a hosted build; 2 unit tests; installed on my iPhone | Worked |
 | 32 | "it show invalid password" (signing in as the lecturer on my iPhone) | Checked that the hosted lecturer account signs in (200) and that the phone's attempt reached the hosted server, not the Mac; the likely causes: an old saved password filled in by iOS, or a typo | Worked (no fault found in the app) |
 | 33 | "also when we logout it show offline data, fix it" | Sign-out clears the phone's records with a warning for unsent work, an open record closes itself, a unit test and a UI check (ADR-026) | Worked (failure 024) |
+| 34 | "in assignmnt check is there any requirmen to keep guest login without signin", "check this" (the brief), "no i need to check are we need to keep guest login without signin" | The brief read in full: it never mentions login, accounts or guests; it requires a backend and offline work that syncs back, so either model meets it | Worked |
+| 35 | "so dont allow them to use app without signin, keep offline sync as but when they logout do not allow, like whatsapp work" | The app opens on sign-in and can't be used signed out; offline after the first sign-in; sign-out returns to sign-in and clears the phone; a local build can change the server from the sign-in screen; UI tests sign in at launch (ADR-027) | Worked |
+| 36 | "make login ui more good with apple design and make settngs page more good ui ux" | A first redesign: a welcome screen with a glowing brand mark and three feature rows, and a Settings-style Sync page (account card, sections, Sign Out at the bottom) | Partially: I said it looked too "vibe coded" |
+| 37 | "its lokk too vibe coded, mak it simple", then "i need simple but proffesional one", then "only show the version, no need to show the server data in login" | Sign-in rebuilt plainly: the real app icon, "Sign in to LabLog", labelled Email and Password fields with show/hide, "Forgot password?" (accounts are reset by the university), one Sign In button, only the version at the bottom; the Sync page's account card as a plain monogram | Worked after the three rounds |
+| 38 | "ok i found a bug, when i signin and check my prevous lab subsmition, there are missing , fix it" | `GET /api/records/mine` (backend, deployed), restoring records and their photos after sign-in (app), tests at every level, the fix on my iPhone (ADR-028) | Worked (failure 026; Docker had also stopped, failure 025) |
+| 39 | "lecturers no need access labs neh, they will not do the labes neh, add option to create labs to lecturers , and poin who can do this" (with a screenshot of the lecturer's Records tab); my answers: the lecturer picks the students, full step rules | Lecturer tabs Review · Labs · Sync; create a lab, add experiments with photo, wait and prerequisite rules (checked by the constraint engine in the app and with Kahn's algorithm on the server), choose students; students see only open or enrolled labs (ADR-029); backend, unit and UI tests; deployed and installed | Worked (failure 027 on the way, from the restore feature) |
+| 40 | "when we click save and create, its wait until backend respond, make it optimized" | Create answers with the new lab or experiment whole (server step ids) and the app adds it to its store and closes the sheet at once, with no catalog refetch; choosing students saves optimistically and reverts on failure; the catalog refresh fetches experiments concurrently instead of one by one | Worked |
+| 41 | "make student choose ui more good" | The student picker rebuilt: a monogram, name and email per student, a checkmark circle that fills when chosen, "2 of 5 selected" with Select All, always-visible search, empty and no-results states, Save only when something changed | Worked |
+| 42 | "also we cant change exiting expermants steps fix it", then "and make ui better of them" | Editing experiments: `PUT /api/manage/experiments/:id` keeps step ids and refuses to remove a step with students' work (backend test); one editor for new and existing experiments; step rows with a numbered circle and rule symbols (camera, timer, after); experiment rows showing steps, photos and timers; unit test and the lecturer UI test now edits an experiment | Worked |
+| 43 | "i created test lab and counter now not going check why, also dynamic island not working" | Found the engine's fallback to *now* for a wait with no prerequisites; the wait now runs from the record's start in the engine, the Live Activity and the checklist component; two unit tests; installed on my iPhone | Worked (failure 028; Docker had quit again during the tests, failure 029) |
 
 ### Notes on selected prompts
 

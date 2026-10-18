@@ -1,0 +1,13 @@
+# xcodebuild test, 18 Oct about 14:30, the first run with records restored after sign-in (excerpt)
+
+LabLogUITests/LabLogFlowUITests.swift:351: error: -[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress] : XCTAssertTrue failed
+LabLogUITests/LabLogFlowUITests.swift:120: error: -[LabLogUITests.LabLogFlowUITests testPendulumTimer] : failed - timer-dial not found.
+LabLogUITests/LabLogFlowUITests.swift:217: error: -[LabLogUITests.LabLogFlowUITests testTitrationFlow] : XCTAssertTrue failed
+Test Case '-[LabLogUITests.LabLogFlowUITests testEditingADraftAndServerAddress]' failed (138.405 seconds).
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerReview]' passed (129.899 seconds).
+Test Case '-[LabLogUITests.LabLogFlowUITests testPendulumTimer]' failed (72.013 seconds).
+Test Case '-[LabLogUITests.LabLogFlowUITests testSignInAndSyncToServer]' passed (95.314 seconds).
+Test Case '-[LabLogUITests.LabLogFlowUITests testTitrationFlow]' failed (42.925 seconds).
+# titration: the tap on Step 4 should have shown the 'locked' toast
+    t =    38.73s Tap "step-node-4" Button
+    t =    39.16s Waiting 3.0s for "toast" Any to exist

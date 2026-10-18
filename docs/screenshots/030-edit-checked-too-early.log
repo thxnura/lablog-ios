@@ -1,0 +1,19 @@
+# 18 Oct, 15:27: full run after the timer fix; Docker up; 63 unit tests and 5 of 6 UI tests passed (excerpt)
+
+    t =   144.24s         Checking existence of `"draft-step-3" Any`
+    t =   145.77s Tap "save-experiment" Any
+    t =   145.77s     Wait for com.thxnura.LabLog to idle
+    t =   145.79s     Find the "save-experiment" Any
+    t =   145.97s     Check for interrupting elements affecting "save-experiment" Other
+    t =   146.68s     Synthesize event
+    t =   147.15s     Wait for com.thxnura.LabLog to idle
+    t =   148.12s Waiting 15.0s for "edit-Heating test" Any to exist
+    t =   149.15s     Checking `Expect predicate `existsNoRetry == 1` for object "edit-Heating test" Any`
+    t =   149.15s         Checking existence of `"edit-Heating test" Any`
+    t =   149.86s Find the "edit-Heating test" Any
+LabLogUITests/LabLogFlowUITests.swift:518: error: -[LabLogUITests.LabLogFlowUITests testLecturerCreatesALab] : XCTAssertTrue failed - the edit is saved
+    t =   150.36s Tear Down
+Test Case '-[LabLogUITests.LabLogFlowUITests testLecturerCreatesALab]' failed (151.100 seconds).
+	 Executed 6 tests, with 1 failure (0 unexpected) in 810.975 (811.005) seconds
+	 Executed 63 tests, with 0 failures (0 unexpected) in 0.636 (0.765) seconds
+# the screen recording's last frames: Edit Experiment still open, Save showing a spinner
