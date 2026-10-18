@@ -228,14 +228,21 @@ private struct SyncHero: View {
     }
 
     private var subtitle: String {
+        let records = "\(pendingCount) record\(pendingCount == 1 ? " is" : "s are")"
         switch status {
         case .idle:
             if let lastSyncedAt { return "Last synced \(lastSyncedAt.formatted(.relative(presentation: .named)))." }
             return pendingCount == 0 ? "Nothing waiting." : "They'll upload automatically."
         case .syncing: return "Uploading photos first, then records."
-        case .offline: return "\(pendingCount) waiting. They'll upload when you reconnect."
-        case .notConfigured: return "No server in this build — \(pendingCount) record\(pendingCount == 1 ? " is" : "s are") kept safely on this iPhone."
-        case .signedOut: return "Your \(pendingCount) record\(pendingCount == 1 ? " is" : "s are") saved here until you sign in."
+        case .offline: return pendingCount == 0
+            ? "Your work is saved on this iPhone and syncs when you reconnect."
+            : "\(pendingCount) waiting. They'll upload when you reconnect."
+        case .notConfigured: return pendingCount == 0
+            ? "No server in this build, so records stay on this iPhone."
+            : "No server in this build — \(records) kept safely on this iPhone."
+        case .signedOut: return pendingCount == 0
+            ? "Your lab records stay on this iPhone until you sign in."
+            : "Your \(records) saved here until you sign in."
         case .failed(let message): return message
         }
     }

@@ -17,10 +17,12 @@ struct RecordCaptureView: View {
                 ProgressView()
             }
         }
-        .task {
+        // One task creates and loads the model. With two, the reload could run
+        // before the model existed and the screen stayed empty (failure 019).
+        .task(id: app.store.version) {
             if model == nil { model = RecordCaptureModel(recordId: recordId, app: app) }
+            model?.load()
         }
-        .task(id: app.store.version) { model?.load() }
     }
 }
 
