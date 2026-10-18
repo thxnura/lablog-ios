@@ -2,7 +2,7 @@ import XCTest
 @testable import LabLog
 
 /// Unit tests for the constraint centrepiece. Demonstrates precedence, photo,
-/// and timer guards — good evidence for the "constraint design" grading line.
+/// and timer guards — the core of the app's constraint design.
 final class StepConstraintEngineTests: XCTestCase {
     let engine = StepConstraintEngine()
     let exp = UUID()

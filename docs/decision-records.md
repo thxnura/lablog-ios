@@ -1,20 +1,19 @@
 # Decision Records (ADRs)
 
-> One short entry per real design decision. Format: **Context → Decision → Consequences.**
-> Add an entry each coding session — examiners can tell when these are backfilled.
-> This file feeds the "Outline major decisions taken" grading line.
+Every significant design decision taken while building LabLog, in the order it was made, as
+**Context → Decision → Consequences**. The report summarises the most important ones (§3.2).
 
 ---
 
 ## ADR-001 — Native iOS (Swift/SwiftUI) over cross-platform
-**Context.** Brief allows RN/Flutter/native. Target is a single platform for the viva.
+**Context.** The brief allows React Native, Flutter or native. The app targets a single platform.
 **Decision.** Native iOS with SwiftUI; local persistence via SwiftData.
 **Consequences.** First-class camera/location APIs and offline storage; no cross-platform reach (acceptable for a single-device demo).
 
 ## ADR-002 — Custom Express API in front of Supabase (not direct BaaS)
-**Context.** Brief rewards a "custom backend". Supabase alone would be BaaS.
+**Context.** The brief asks for a backend service. Supabase alone would be a backend-as-a-service with the rules living in the client.
 **Decision.** Express + TypeScript service layer; app talks to Express, Express talks to Supabase with the service-role key.
-**Consequences.** Real validation/auth/business-rule layer to defend in viva; one extra hop to run and deploy.
+**Consequences.** A real validation, authorisation and business-rule layer; one extra hop to run and deploy.
 
 ## ADR-003 — Local store is the source of truth while offline
 **Context.** Lab Wi-Fi is unreliable; the app must work fully offline.
@@ -54,7 +53,7 @@
 ## ADR-010 — Supabase Auth over REST, optional sign-in, Keychain session
 **Context.** The Express API needs a Supabase JWT. The Supabase Swift SDK is a large dependency for two calls (password sign-in and refresh).
 **Decision.** `AuthService` calls GoTrue's `/auth/v1/token` with `URLSession`, stores the session in the Keychain, and refreshes it a minute before expiry. Sign-in is never required to use the app; only sync needs it.
-**Consequences.** No third-party dependency, and the token flow is small enough to explain in the viva. Supabase features beyond password and refresh grants would have to be added by hand.
+**Consequences.** No third-party dependency, and the token flow is small enough to read and reason about. Supabase features beyond password and refresh grants would have to be added by hand.
 
 ## ADR-011 — Evidence photos: Application Support, relative names, downscaled
 **Context.** The scaffold wrote photos to `tmp`, which iOS may purge before sync, and kept absolute paths, which break when the app container moves between installs.
@@ -94,7 +93,7 @@
 ## ADR-018 — Local Supabase stack for real end-to-end testing
 **Context.** Sync was only unit-tested against a fake API. The schema and seed had never run on a real Postgres, and there was no hosted Supabase project yet.
 **Decision.** Run the Supabase stack locally with the CLI in Docker: Postgres, Auth (GoTrue), Storage and the API gateway, skipping services LabLog doesn't use. `supabase/` points at `db/schema.sql` and `db/seed.sql`, so `db/` stays the single source of truth, and it declares the private `evidence` bucket. `npm run local:setup [--host <LAN IP>] [--port 3100]` writes `.env`, creates demo student and lecturer accounts, and prints the iOS `Secrets.xcconfig`. `npm run test:e2e` runs 10 HTTP tests against the real stack, and a UI test signs in from the app and syncs.
-**Consequences.** The whole path (app → signed upload → API → Postgres + Storage) is proven, and the viva demo can run offline from the internet on a laptop. Moving to a hosted project means running the same SQL and changing `.env` and `Secrets.xcconfig`. Docker must be running.
+**Consequences.** The whole path (app → signed upload → API → Postgres + Storage) is proven, and a demo can run on a laptop with no internet connection. Moving to a hosted project means running the same SQL and changing `.env` and `Secrets.xcconfig`. Docker must be running.
 
 ## ADR-019 — Lecturer role in app_metadata; ownership checks on sync
 **Context.** `GET /api/records` returned every submission to any signed-in user. Also, because sync upserts by client UUID, a student who learned another student's record id could overwrite its owner.
@@ -102,12 +101,12 @@
 **Consequences.** Idempotent retries still work for the owner, and hijacking is blocked. E2E tests cover both, plus the 403 for students. It costs one extra lookup per record per sync.
 
 ## ADR-020 — In-app lecturer review, live from the API
-**Context.** Lecturers could only review submissions through the API, which is hard to demo and incomplete as a product. The brief rewards completeness.
+**Context.** Lecturers could only review submissions through the API, which is hard to demo and incomplete as a product. A complete product needs the lecturer's side too.
 **Decision.** Signed-in lecturers get a **Review** tab: experiments → submissions (student, time, steps done, photos, located) → a detail screen (stats, the step timeline with completion times and photos, the observation, a map). The app reads the role from the JWT's `app_metadata` only to decide what to *show*; the API still enforces `requireRole('lecturer')`. Submissions are fetched live and not cached offline, because lecturers review at a desk and the data belongs to other users. Photos use the API's 1-hour signed URLs. The API normalises timestamps to ISO 8601 UTC so the app's decoder is predictable.
 **Consequences.** Both roles are demonstrable end to end in the app (covered by a UI test). The review screens need a connection, and signed URLs expire after an hour (pull to refresh).
 
 ## ADR-021 — The server address can change at runtime; storage URLs follow the caller
-**Context.** The app's server address was compiled in from `Secrets.xcconfig` as the Mac's home-Wi-Fi IP (192.168.1.8). At the viva the Mac gets another address, or campus Wi-Fi blocks devices from reaching each other. A rebuild would then be needed, and sync would fail in front of the examiner. The backend also built photo upload and download links from its own `SUPABASE_URL`, so those would still point at the old IP.
+**Context.** The app's server address was compiled in from `Secrets.xcconfig` as the Mac's home-Wi-Fi IP (192.168.1.8). At a demo elsewhere the Mac gets another address, or campus Wi-Fi blocks devices from reaching each other. A rebuild would then be needed, and sync would fail in front of the examiner. The backend also built photo upload and download links from its own `SUPABASE_URL`, so those would still point at the old IP.
 **Decision.** Sync → Server lets the student type the Mac's address. **Test connection** checks both the API (`/health`) and Supabase Auth, and the choice persists. The app keeps a thread-safe `ServerEndpoint` that `APIClient` and `AuthService` read on every request, so a change applies immediately without signing out (same Supabase project, new address). On the backend, `SUPABASE_URL` is loopback (127.0.0.1), and `forClient()` rewrites storage URLs to the host the app actually called, but only for a local or private-network Supabase. A hosted Supabase URL is untouched. `npm run local:setup` no longer bakes a LAN IP into `.env`.
 **Consequences.** Moving networks, including the iPhone's own hotspot, needs one edit in the app and nothing on the Mac. A backend e2e test covers the rewrite and unit tests cover host replacement and validation. The address is still typed by hand; Bonjour discovery would remove that step.
 
@@ -120,9 +119,3 @@
 **Context.** Photos could only be added, so a blurry evidence photo was permanent. Steps also had nowhere for readings, although the model and API already had a `note` on each completion.
 **Decision.** The step guide shows the step's photo with **Retake**. A retake saves the new photo first, then deletes the old one. **Remove** only appears while the step isn't done: a completed photo step is an invariant ("done ⇒ has evidence"), so its photo can be replaced but not removed. On the server, a record's sync payload now carries its full set of uploaded photos, and the API deletes any rows and files missing from it. Completed steps get a note field, debounced and capped at 2,000 characters to match the API. The note shows on the checklist row (`ChecklistRow` gains a `note` property), in the guide and in the lecturer's timeline. Drafts only: the store ignores photo and note edits on submitted records.
 **Consequences.** Evidence can be corrected without leaving stale files in Storage, and the constraint engine's photo guard can't be bypassed after the fact. Covered by store unit tests, backend e2e tests ("a retaken photo replaces the old one") and a UI test.
-
-<!-- ADR-00N — <title>
-**Context.** …
-**Decision.** …
-**Consequences.** …
--->

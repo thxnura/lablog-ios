@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Connectivity, account, and outbox state, with manual controls. This is the
-/// viva demo screen: airplane mode → create record → reconnect → watch it drain.
+/// demo screen: airplane mode → create record → reconnect → watch it drain.
 struct SyncStatusView: View {
     @Environment(AppModel.self) private var app
     @State private var failed: [(record: LabRecord, title: String)] = []

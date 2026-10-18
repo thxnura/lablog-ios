@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// LabLog design tokens. Every colour, radius and spacing value used by the
-/// screens comes from here, so the visual language stays consistent and can be
-/// defended as a set of deliberate choices.
+/// screens comes from here, so the visual language stays consistent and every
+/// value is a deliberate, documented choice.
 enum Theme {
     // MARK: Colour — semantic first; brand accent lives in Assets (AccentColor).
     static let success = Color(red: 0.16, green: 0.68, blue: 0.42)
