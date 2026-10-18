@@ -41,10 +41,15 @@ review submissions in the same app.
 <td><img src="docs/screenshots/report/fig-10-lecturer.png" alt="Lecturer review"></td>
 </tr>
 <tr><td align="center"><em>Lecturers review submissions: steps with times, photos, observation and location.</em></td></tr>
+<tr>
+<td><img src="docs/screenshots/report/fig-13-dark.png" alt="Dark mode"></td>
+</tr>
+<tr><td align="center"><em>Dark mode: the app follows the system appearance, and every screen was checked in it.</em></td></tr>
 </table>
 
-More screens are in the report: submitting (Fig. 6), editing a draft (Fig. 11), choosing the server
-(Fig. 12) and dark mode (Fig. 13).
+More screens are in the report: submitting (Fig. 6), editing a draft (Fig. 11) and choosing the
+server (Fig. 12). All dark-mode screenshots are in
+[`docs/screenshots/ui-dark/`](docs/screenshots/ui-dark/).
 
 ## Architecture
 
